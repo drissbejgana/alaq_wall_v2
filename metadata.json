@@ -1,0 +1,7 @@
+{
+  "name": "Alaq Wall",
+  "description": "A professional construction management tool for wall painting and dyeing, featuring AI-powered room visualization, automated quoting, and order management.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
