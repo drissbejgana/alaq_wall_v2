@@ -139,3 +139,71 @@ Décorative
     }
   }
 }
+
+
+
+
+
+👉 Bâtiment → Extérieur
+
+1️⃣ Bâtiment → Extérieur (main choice)
+
+When user selects Extérieur, show 4 types:
+
+Extérieur
+ ├── Neuf
+ ├── Monocouche
+ ├── Ancien peinturé
+ └── Placo
+
+
+User still inputs:
+
+Surface (m²)
+
+2️⃣ Extérieur → Neuf
+
+Neuf has 2 finitions:
+
+Neuf
+ ├── Simple
+ └── Décoratif
+
+Neuf → Simple
+SYSTEM
+
+Neuf → Décoratif
+SYSTEM
+
+
+➡️ Same system, only finition changes later if needed.
+
+3️⃣ Extérieur → Monocouche
+
+No extra choice:
+
+Monocouche :
+- 1 couche d’impression
+- 2 couches de finition
+
+4️⃣ Extérieur → Ancien peinturé
+
+User chooses:
+
+Ancien peinturé
+ ├── Avec enduit
+ └── Sans enduit
+
+✔️ Avec enduit
+SYSTEM
+
+❌ Sans enduit
+- 1 couche d’impression
+- 2 couches de finition
+
+5️⃣ Extérieur → Placo
+
+No questions:
+
+Placo :
+SYSTEM

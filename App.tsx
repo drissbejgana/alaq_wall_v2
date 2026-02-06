@@ -9,6 +9,7 @@ import QuoteDetails from './pages/QuoteDetails';
 import Profile from './pages/Profile';
 import Simulator from './pages/Simulator';
 import Auth from './pages/Auth';
+import QuotesPage from './pages/Quotes';
 
 const MainLayout: React.FC = () => {
   const { user, logout } = useAuth();
@@ -112,10 +113,10 @@ const AppRoutes: React.FC = () => {
       <Route element={<ProtectedRoute />}>
         <Route element={<MainLayout />}>
           <Route path="/" element={<Dashboard onNewQuote={() => navigate('/wizard')} activeSection="overview" />} />
-          <Route path="/quotes" element={<Dashboard onNewQuote={() => navigate('/wizard')} activeSection="quotes" />} />
+          <Route path="/quotes" element={<QuotesPage />} />
           <Route path="/quotes/:id" element={<QuoteDetails />} />
-          <Route path="/orders" element={<Dashboard onNewQuote={() => navigate('/wizard')} activeSection="orders" />} />
-          <Route path="/invoices" element={<Dashboard onNewQuote={() => navigate('/wizard')} activeSection="invoices" />} />
+          {/* <Route path="/orders" element={<Dashboard onNewQuote={() => navigate('/wizard')} activeSection="orders" />} /> */}
+          {/* <Route path="/invoices" element={<Dashboard onNewQuote={() => navigate('/wizard')} activeSection="invoices" />} /> */}
           <Route path="/simulator" element={<Simulator />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/wizard" element={<QuoteWizard />} />

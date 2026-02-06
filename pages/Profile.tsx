@@ -1,8 +1,9 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { db } from '../services/db';
 import { User } from '../types';
 import { Save, RefreshCcw, UserCircle, Mail, Lock, CheckCircle2, Camera, ShieldCheck, BellRing } from 'lucide-react';
+import { authService } from '@/services/auth';
 
 const Profile: React.FC = () => {
   const currentUser = db.users.getCurrent();
@@ -10,6 +11,7 @@ const Profile: React.FC = () => {
   const [email, setEmail] = useState(currentUser?.email || '');
   const [isSaving, setIsSaving] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,6 +31,17 @@ const Profile: React.FC = () => {
       window.dispatchEvent(new Event('storage'));
     }, 800);
   };
+
+useEffect(()=>{
+  async function fetchProfile() {
+     const res = await authService.getProfile() 
+     setName(`${res.first_name} ${res.last_name}`)
+     setEmail(res.email)
+     console.log(res)
+
+  } 
+  fetchProfile()
+},[])
 
   return (
     <div className="space-y-10 animate-fade-in">

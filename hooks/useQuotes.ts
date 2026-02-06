@@ -51,52 +51,52 @@ export const useQuotes = () => {
   return { quotes, loading, error, refresh };
 };
 
-export const useOrders = () => {
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+// export const useOrders = () => {
+//   const [orders, setOrders] = useState<Order[]>([]);
+//   const [loading, setLoading] = useState(true);
+//   const [error, setError] = useState<string | null>(null);
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await quotesService.getOrders();
-      setOrders(data.results);
-      setError(null);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+//   const refresh = useCallback(async () => {
+//     setLoading(true);
+//     try {
+//       const data = await quotesService.getOrders();
+//       setOrders(data.results);
+//       setError(null);
+//     } catch (err: any) {
+//       setError(err.message);
+//     } finally {
+//       setLoading(false);
+//     }
+//   }, []);
 
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
+//   useEffect(() => {
+//     refresh();
+//   }, [refresh]);
 
-  return { orders, loading, error, refresh };
-};
+//   return { orders, loading, error, refresh };
+// };
 
-export const useInvoices = () => {
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+// export const useInvoices = () => {
+//   const [invoices, setInvoices] = useState<Invoice[]>([]);
+//   const [loading, setLoading] = useState(true);
+//   const [error, setError] = useState<string | null>(null);
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await quotesService.getInvoices();
-      setInvoices(data.results);
-      setError(null);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+//   const refresh = useCallback(async () => {
+//     setLoading(true);
+//     try {
+//       const data = await quotesService.getInvoices();
+//       setInvoices(data.results);
+//       setError(null);
+//     } catch (err: any) {
+//       setError(err.message);
+//     } finally {
+//       setLoading(false);
+//     }
+//   }, []);
 
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
+//   useEffect(() => {
+//     refresh();
+//   }, [refresh]);
 
-  return { invoices, loading, error, refresh };
-};
+//   return { invoices, loading, error, refresh };
+// };
