@@ -17,6 +17,9 @@ type PlafondType = 'placo' | 'enduit_ciment' | 'ancien_peinture' | 'platre_proje
 type FinitionType = 'simple' | 'decorative';
 type PeintureAspect = 'mat' | 'brillant' | 'satine';
 type DecorativeOption = 'produit_decoratif' | 'papier_peint';
+type ExterieurType = 'neuf' | 'monocouche' | 'ancien_peinture' | 'placo';
+type ExterieurFinition = 'simple' | 'decoratif';
+type AncienEnduit = 'avec_enduit' | 'sans_enduit';
 
 interface SystemStep {
   id: string;
@@ -35,14 +38,10 @@ interface ReferenceData {
   finition_types: Array<{ value: string; label: string }>;
   peinture_aspects: Array<{ value: string; label: string }>;
   decorative_options: Array<{ value: string; label: string }>;
-  systems: {
-    plafond_placo_fini: SystemStep[];
-    plafond_placo_non_fini: SystemStep[];
-    plafond_standard: SystemStep[];
-    mur_peinture: SystemStep[];
-    mur_decoratif: SystemStep[];
-    mur_papier_peint: SystemStep[];
-  };
+  exterieur_types: Array<{ value: string; label: string }>;
+  exterieur_finitions: Array<{ value: string; label: string }>;
+  ancien_enduit_options: Array<{ value: string; label: string }>;
+  systems: Record<string, SystemStep[]>;
   material_prices: Record<string, number>;
   labor_prices: Record<string, number>;
   defaults: {
@@ -70,6 +69,22 @@ const ASPECT_DESCRIPTIONS: Record<string, string> = {
   mat: 'Finition sans reflet, idéale pour masquer les imperfections',
   satine: 'Légèrement brillant, facile à nettoyer',
   brillant: 'Très réfléchissant, effet laqué',
+};
+
+// Extérieur type icons
+const EXTERIEUR_ICONS: Record<string, string> = {
+  neuf: '🏗️',
+  monocouche: '🖌️',
+  ancien_peinture: '🎨',
+  placo: '🔲',
+};
+
+// Extérieur type descriptions
+const EXTERIEUR_DESCRIPTIONS: Record<string, string> = {
+  neuf: 'Façade neuve, premier traitement',
+  monocouche: 'Application monocouche façade',
+  ancien_peinture: 'Façade déjà peinte',
+  placo: 'Placo extérieur',
 };
 
 const QuoteWizard: React.FC = () => {
@@ -101,6 +116,11 @@ const QuoteWizard: React.FC = () => {
   const [peintureAspect, setPeintureAspect] = useState<PeintureAspect>('satine');
   const [decorativeOption, setDecorativeOption] = useState<DecorativeOption>('produit_decoratif');
 
+  // Extérieur
+  const [exterieurType, setExterieurType] = useState<ExterieurType>('neuf');
+  const [exterieurFinition, setExterieurFinition] = useState<ExterieurFinition>('simple');
+  const [ancienEnduit, setAncienEnduit] = useState<AncienEnduit>('avec_enduit');
+
   // Step 4: Client info
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
@@ -128,6 +148,20 @@ const QuoteWizard: React.FC = () => {
   const currentSystem = useMemo((): SystemStep[] => {
     if (!references) return [];
     
+    if (zone === 'exterieur') {
+      let key = 'ext_neuf_simple';
+      if (exterieurType === 'neuf') {
+        key = exterieurFinition === 'decoratif' ? 'ext_neuf_decoratif' : 'ext_neuf_simple';
+      } else if (exterieurType === 'monocouche') {
+        key = 'ext_monocouche';
+      } else if (exterieurType === 'ancien_peinture') {
+        key = ancienEnduit === 'avec_enduit' ? 'ext_ancien_avec_enduit' : 'ext_ancien_sans_enduit';
+      } else {
+        key = 'ext_placo';
+      }
+      return references.systems[key] || [];
+    }
+
     if (element === 'plafond') {
       if (plafondType === 'placo') {
         return placoFini 
@@ -145,7 +179,7 @@ const QuoteWizard: React.FC = () => {
           : references.systems.mur_decoratif;
       }
     }
-  }, [references, element, plafondType, placoFini, finitionType, decorativeOption]);
+  }, [references, zone, element, plafondType, placoFini, finitionType, decorativeOption, exterieurType, exterieurFinition, ancienEnduit]);
 
   // Calculate costs
   const calculations = useMemo(() => {
@@ -167,70 +201,96 @@ const QuoteWizard: React.FC = () => {
     // Material costs based on selections
     let materialCost = 0;
     const materials: { name: string; quantity: number; unit: string; unitPrice: number }[] = [];
+    const isExt = zone === 'exterieur';
 
-    // Impression/Primaire
+    // Impression
+    const impKey = isExt ? 'impression_ext' : 'impression';
+    const impPrice = references.material_prices[impKey] || 12;
     const impressionQty = Math.ceil(surface / 10);
     materials.push({ 
-      name: 'Impression universelle', 
+      name: isExt ? 'Impression façade' : 'Impression universelle', 
       quantity: impressionQty, 
       unit: 'L', 
-      unitPrice: references.material_prices.impression 
+      unitPrice: impPrice 
     });
-    materialCost += impressionQty * references.material_prices.impression;
+    materialCost += impressionQty * impPrice;
 
-    if (element === 'plafond' && plafondType === 'placo' && !placoFini) {
-      // Enduit for non-fini placo
-      const enduitQty = Math.ceil(surface * 1.5);
-      materials.push({ 
-        name: 'Enduit de lissage', 
-        quantity: enduitQty, 
-        unit: 'kg', 
-        unitPrice: references.material_prices.enduit 
-      });
-      materialCost += enduitQty * references.material_prices.enduit;
-    }
+    if (isExt) {
+      // ── Extérieur materials ──
+      // Enduit for ancien avec enduit or placo
+      if ((exterieurType === 'ancien_peinture' && ancienEnduit === 'avec_enduit') || exterieurType === 'placo') {
+        const enduitQty = Math.ceil(surface * 1.5);
+        materials.push({ name: 'Enduit façade', quantity: enduitQty, unit: 'kg', unitPrice: references.material_prices.enduit_facade || 10 });
+        materialCost += enduitQty * (references.material_prices.enduit_facade || 10);
+      }
 
-    // Paint/Finish material
-    if (element === 'mur' && finitionType === 'decorative') {
-      if (decorativeOption === 'produit_decoratif') {
+      // Finish
+      if (exterieurType === 'neuf' && exterieurFinition === 'decoratif') {
         const decoQty = Math.ceil(surface / 4);
-        materials.push({ 
-          name: 'Produit décoratif', 
-          quantity: decoQty, 
-          unit: 'L', 
-          unitPrice: references.material_prices.produit_decoratif 
-        });
-        materialCost += decoQty * references.material_prices.produit_decoratif;
+        materials.push({ name: 'Produit décoratif extérieur', quantity: decoQty, unit: 'L', unitPrice: references.material_prices.produit_decoratif_ext || 95 });
+        materialCost += decoQty * (references.material_prices.produit_decoratif_ext || 95);
+      } else if (exterieurType === 'monocouche') {
+        const paintQty = Math.ceil((surface * 2) / 8);
+        materials.push({ name: 'Peinture monocouche façade', quantity: paintQty, unit: 'L', unitPrice: references.material_prices.peinture_monocouche || 70 });
+        materialCost += paintQty * (references.material_prices.peinture_monocouche || 70);
       } else {
-        const ppQty = Math.ceil(surface * 1.1);
-        materials.push({ 
-          name: 'Papier peint', 
-          quantity: ppQty, 
-          unit: 'm²', 
-          unitPrice: references.material_prices.papier_peint 
-        });
-        materials.push({ 
-          name: 'Colle papier peint', 
-          quantity: Math.ceil(surface / 5), 
-          unit: 'kg', 
-          unitPrice: references.material_prices.colle 
-        });
-        materialCost += ppQty * references.material_prices.papier_peint + 
-                       Math.ceil(surface / 5) * references.material_prices.colle;
+        const paintQty = Math.ceil((surface * 2) / 10);
+        materials.push({ name: 'Peinture façade', quantity: paintQty, unit: 'L', unitPrice: references.material_prices.peinture_facade || 60 });
+        materialCost += paintQty * (references.material_prices.peinture_facade || 60);
       }
     } else {
-      // Standard paint
-      const paintPriceKey = `peinture_${peintureAspect}`;
-      const paintPrice = references.material_prices[paintPriceKey] || 50;
-      const paintQty = Math.ceil((surface * 2) / 10); // 2 coats, 10m²/L coverage
-      const paintName = `Peinture ${peintureAspect === 'mat' ? 'Mat' : peintureAspect === 'satine' ? 'Satiné' : 'Brillant'}`;
-      materials.push({ 
-        name: paintName, 
-        quantity: paintQty, 
-        unit: 'L', 
-        unitPrice: paintPrice 
-      });
-      materialCost += paintQty * paintPrice;
+      // ── Intérieur materials ──
+      if (element === 'plafond' && plafondType === 'placo' && !placoFini) {
+        const enduitQty = Math.ceil(surface * 1.5);
+        materials.push({ 
+          name: 'Enduit de lissage', 
+          quantity: enduitQty, 
+          unit: 'kg', 
+          unitPrice: references.material_prices.enduit 
+        });
+        materialCost += enduitQty * references.material_prices.enduit;
+      }
+
+      if (element === 'mur' && finitionType === 'decorative') {
+        if (decorativeOption === 'produit_decoratif') {
+          const decoQty = Math.ceil(surface / 4);
+          materials.push({ 
+            name: 'Produit décoratif', 
+            quantity: decoQty, 
+            unit: 'L', 
+            unitPrice: references.material_prices.produit_decoratif 
+          });
+          materialCost += decoQty * references.material_prices.produit_decoratif;
+        } else {
+          const ppQty = Math.ceil(surface * 1.1);
+          materials.push({ 
+            name: 'Papier peint', 
+            quantity: ppQty, 
+            unit: 'm²', 
+            unitPrice: references.material_prices.papier_peint 
+          });
+          materials.push({ 
+            name: 'Colle papier peint', 
+            quantity: Math.ceil(surface / 5), 
+            unit: 'kg', 
+            unitPrice: references.material_prices.colle 
+          });
+          materialCost += ppQty * references.material_prices.papier_peint + 
+                         Math.ceil(surface / 5) * references.material_prices.colle;
+        }
+      } else {
+        const paintPriceKey = `peinture_${peintureAspect}`;
+        const paintPrice = references.material_prices[paintPriceKey] || 50;
+        const paintQty = Math.ceil((surface * 2) / 10);
+        const paintName = `Peinture ${peintureAspect === 'mat' ? 'Mat' : peintureAspect === 'satine' ? 'Satiné' : 'Brillant'}`;
+        materials.push({ 
+          name: paintName, 
+          quantity: paintQty, 
+          unit: 'L', 
+          unitPrice: paintPrice 
+        });
+        materialCost += paintQty * paintPrice;
+      }
     }
 
     const subtotal = laborCost + materialCost;
@@ -245,12 +305,25 @@ const QuoteWizard: React.FC = () => {
       tax: Math.round(tax),
       total: Math.round(total),
     };
-  }, [references, currentSystem, surface, element, plafondType, placoFini, finitionType, decorativeOption, peintureAspect]);
+  }, [references, currentSystem, surface, zone, element, plafondType, placoFini, finitionType, decorativeOption, peintureAspect, exterieurType, exterieurFinition, ancienEnduit]);
 
   // Get summary text
   const getSummaryText = () => {
     if (!references) return '';
     
+    if (zone === 'exterieur') {
+      const extLabel = references.exterieur_types?.find(t => t.value === exterieurType)?.label || exterieurType;
+      let text = `Extérieur — ${extLabel}`;
+      if (exterieurType === 'neuf') {
+        const finLabel = references.exterieur_finitions?.find(f => f.value === exterieurFinition)?.label || exterieurFinition;
+        text += ` (${finLabel})`;
+      } else if (exterieurType === 'ancien_peinture') {
+        const endLabel = references.ancien_enduit_options?.find(o => o.value === ancienEnduit)?.label || ancienEnduit;
+        text += ` (${endLabel})`;
+      }
+      return text;
+    }
+
     let text = `${element === 'plafond' ? 'Plafond' : 'Mur'} — `;
     
     if (element === 'plafond') {
@@ -288,6 +361,9 @@ const QuoteWizard: React.FC = () => {
         finition_type: finitionType,
         peinture_aspect: peintureAspect,
         decorative_option: decorativeOption,
+        exterieur_type: exterieurType,
+        exterieur_finition: exterieurFinition,
+        ancien_enduit: ancienEnduit,
         client_name: clientName,
         client_address: clientAddress,
         client_phone: clientPhone,
@@ -417,32 +493,27 @@ const QuoteWizard: React.FC = () => {
                       <button
                         key={zoneOption.value}
                         onClick={() => setZone(zoneOption.value as Zone)}
-                        disabled={zoneOption.value !== 'interieur'}
                         className={`flex items-center gap-5 p-6 rounded-[2rem] border-2 transition-all ${
                           zone === zoneOption.value 
                             ? 'border-slate-900 bg-slate-900 text-white shadow-2xl' 
-                            : zoneOption.value === 'interieur'
-                            ? 'border-slate-100 bg-slate-50 hover:border-gold/30'
-                            : 'border-slate-100 bg-slate-50 opacity-50 cursor-not-allowed'
+                            : 'border-slate-100 bg-slate-50 hover:border-gold/30'
                         }`}
                       >
                         <div className={`w-14 h-14 rounded-xl flex items-center justify-center ${
                           zone === zoneOption.value 
                             ? 'bg-gold text-white' 
-                            : zoneOption.value === 'interieur'
-                            ? 'bg-white text-slate-400 border border-slate-200'
-                            : 'bg-white text-slate-300 border border-slate-200'
+                            : 'bg-white text-slate-400 border border-slate-200'
                         }`}>
                           {zoneOption.value === 'interieur' ? <Home size={28} /> : <Sun size={28} />}
                         </div>
                         <div className="text-left">
                           <p className={`font-black uppercase tracking-widest text-sm ${
-                            zone === zoneOption.value ? 'text-gold' : zoneOption.value === 'interieur' ? 'text-slate-900' : 'text-slate-400'
+                            zone === zoneOption.value ? 'text-gold' : 'text-slate-900'
                           }`}>{zoneOption.label}</p>
                           <p className={`text-[10px] font-bold ${
-                            zone === zoneOption.value ? 'text-slate-400' : zoneOption.value === 'interieur' ? 'text-slate-400' : 'text-slate-300'
+                            zone === zoneOption.value ? 'text-slate-400' : 'text-slate-400'
                           }`}>
-                            {zoneOption.value === 'interieur' ? 'Murs et plafonds' : 'Bientôt disponible'}
+                            {zoneOption.value === 'interieur' ? 'Murs et plafonds' : 'Façades et extérieurs'}
                           </p>
                         </div>
                       </button>
@@ -460,44 +531,88 @@ const QuoteWizard: React.FC = () => {
                     <Ruler size={32} />
                   </div>
                   <div>
-                    <h2 className="text-3xl font-black text-slate-900">Élément & Surface</h2>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Choisissez l'élément à traiter</p>
+                    <h2 className="text-3xl font-black text-slate-900">
+                      {zone === 'exterieur' ? 'Type & Surface' : 'Élément & Surface'}
+                    </h2>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
+                      {zone === 'exterieur' ? 'Choisissez le type de façade' : "Choisissez l'élément à traiter"}
+                    </p>
                   </div>
                 </div>
 
-                {/* Element */}
-                <div className="space-y-4">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">Élément</label>
-                  <div className="grid grid-cols-2 gap-4">
-                    {references.elements.map((elementOption) => (
-                      <button
-                        key={elementOption.value}
-                        onClick={() => setElement(elementOption.value as Element)}
-                        className={`flex items-center gap-5 p-6 rounded-[2rem] border-2 transition-all ${
-                          element === elementOption.value 
-                            ? 'border-slate-900 bg-slate-900 text-white shadow-2xl' 
-                            : 'border-slate-100 bg-slate-50 hover:border-gold/30'
-                        }`}
-                      >
-                        <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-2xl ${
-                          element === elementOption.value ? 'bg-gold' : 'bg-white border border-slate-200'
-                        }`}>
-                          {elementOption.value === 'mur' ? '🧱' : '⬜'}
-                        </div>
-                        <div className="text-left">
-                          <p className={`font-black uppercase tracking-widest text-sm ${
-                            element === elementOption.value ? 'text-gold' : 'text-slate-900'
-                          }`}>{elementOption.label}</p>
-                          <p className={`text-[10px] font-bold ${
-                            element === elementOption.value ? 'text-slate-400' : 'text-slate-400'
-                          }`}>
-                            {elementOption.value === 'mur' ? 'Peinture ou décoration' : 'Différents types de support'}
-                          </p>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                {zone === 'exterieur' ? (
+                  <>
+                    {/* Extérieur Types */}
+                    <div className="space-y-4">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">Type extérieur</label>
+                      <div className="grid grid-cols-2 gap-4">
+                        {(references.exterieur_types || []).map((type) => (
+                          <button
+                            key={type.value}
+                            onClick={() => setExterieurType(type.value as ExterieurType)}
+                            className={`flex items-center gap-4 p-5 rounded-[2rem] border-2 transition-all ${
+                              exterieurType === type.value 
+                                ? 'border-slate-900 bg-slate-900 text-white shadow-2xl' 
+                                : 'border-slate-100 bg-slate-50 hover:border-gold/30'
+                            }`}
+                          >
+                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-xl ${
+                              exterieurType === type.value ? 'bg-gold' : 'bg-white border border-slate-200'
+                            }`}>
+                              {EXTERIEUR_ICONS[type.value] || '🏠'}
+                            </div>
+                            <div className="text-left">
+                              <p className={`font-black uppercase tracking-widest text-sm ${
+                                exterieurType === type.value ? 'text-gold' : 'text-slate-900'
+                              }`}>{type.label}</p>
+                              <p className={`text-[9px] font-bold ${
+                                exterieurType === type.value ? 'text-slate-400' : 'text-slate-400'
+                              }`}>
+                                {EXTERIEUR_DESCRIPTIONS[type.value] || ''}
+                              </p>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {/* Element (intérieur) */}
+                    <div className="space-y-4">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">Élément</label>
+                      <div className="grid grid-cols-2 gap-4">
+                        {references.elements.map((elementOption) => (
+                          <button
+                            key={elementOption.value}
+                            onClick={() => setElement(elementOption.value as Element)}
+                            className={`flex items-center gap-5 p-6 rounded-[2rem] border-2 transition-all ${
+                              element === elementOption.value 
+                                ? 'border-slate-900 bg-slate-900 text-white shadow-2xl' 
+                                : 'border-slate-100 bg-slate-50 hover:border-gold/30'
+                            }`}
+                          >
+                            <div className={`w-14 h-14 rounded-xl flex items-center justify-center text-2xl ${
+                              element === elementOption.value ? 'bg-gold' : 'bg-white border border-slate-200'
+                            }`}>
+                              {elementOption.value === 'mur' ? '🧱' : '⬜'}
+                            </div>
+                            <div className="text-left">
+                              <p className={`font-black uppercase tracking-widest text-sm ${
+                                element === elementOption.value ? 'text-gold' : 'text-slate-900'
+                              }`}>{elementOption.label}</p>
+                              <p className={`text-[10px] font-bold ${
+                                element === elementOption.value ? 'text-slate-400' : 'text-slate-400'
+                              }`}>
+                                {elementOption.value === 'mur' ? 'Peinture ou décoration' : 'Différents types de support'}
+                              </p>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
 
                 {/* Surface */}
                 <div className="space-y-4">
@@ -547,19 +662,116 @@ const QuoteWizard: React.FC = () => {
               <div className="space-y-10 animate-fade-in">
                 <div className="flex items-center gap-5 border-b border-slate-50 pb-8">
                   <div className="w-14 h-14 rounded-2xl bg-gold/10 flex items-center justify-center text-gold">
-                    {element === 'plafond' ? <Layers size={32} /> : <PaintBucket size={32} />}
+                    {zone === 'exterieur' ? <Sun size={32} /> : element === 'plafond' ? <Layers size={32} /> : <PaintBucket size={32} />}
                   </div>
                   <div>
                     <h2 className="text-3xl font-black text-slate-900">
-                      {element === 'plafond' ? 'Type de Plafond' : 'Type de Finition'}
+                      {zone === 'exterieur' 
+                        ? 'Options Extérieur' 
+                        : element === 'plafond' ? 'Type de Plafond' : 'Type de Finition'}
                     </h2>
                     <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
-                      {element === 'plafond' ? 'Sélectionnez le support' : 'Choisissez la finition murale'}
+                      {zone === 'exterieur'
+                        ? 'Détails du traitement façade'
+                        : element === 'plafond' ? 'Sélectionnez le support' : 'Choisissez la finition murale'}
                     </p>
                   </div>
                 </div>
 
-                {element === 'plafond' ? (
+                {zone === 'exterieur' ? (
+                  <>
+                    {/* ── Extérieur options ── */}
+                    {exterieurType === 'neuf' && (
+                      <div className="space-y-4">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">Type de finition</label>
+                        <div className="grid grid-cols-2 gap-4">
+                          {(references.exterieur_finitions || []).map((fin) => (
+                            <button
+                              key={fin.value}
+                              onClick={() => setExterieurFinition(fin.value as ExterieurFinition)}
+                              className={`flex items-center gap-4 p-6 rounded-[2rem] border-2 transition-all ${
+                                exterieurFinition === fin.value 
+                                  ? 'border-slate-900 bg-slate-900 text-white shadow-2xl' 
+                                  : 'border-slate-100 bg-slate-50 hover:border-gold/30'
+                              }`}
+                            >
+                              <div className={`w-14 h-14 rounded-xl flex items-center justify-center ${
+                                exterieurFinition === fin.value 
+                                  ? 'bg-gold text-white' 
+                                  : 'bg-white text-slate-400 border border-slate-200'
+                              }`}>
+                                {fin.value === 'simple' ? <PaintBucket size={28} /> : <Sparkles size={28} />}
+                              </div>
+                              <div className="text-left">
+                                <p className={`font-black uppercase tracking-widest text-sm ${
+                                  exterieurFinition === fin.value ? 'text-gold' : 'text-slate-900'
+                                }`}>{fin.label}</p>
+                                <p className={`text-[10px] font-bold text-slate-400`}>
+                                  {fin.value === 'simple' ? 'Peinture façade classique' : 'Effet décoratif extérieur'}
+                                </p>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {exterieurType === 'ancien_peinture' && (
+                      <div className="space-y-4">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">Traitement enduit</label>
+                        <div className="grid grid-cols-2 gap-4">
+                          {(references.ancien_enduit_options || []).map((opt) => (
+                            <button
+                              key={opt.value}
+                              onClick={() => setAncienEnduit(opt.value as AncienEnduit)}
+                              className={`flex flex-col items-center gap-3 p-6 rounded-[2rem] border-2 transition-all ${
+                                ancienEnduit === opt.value 
+                                  ? opt.value === 'avec_enduit' ? 'border-emerald-500 bg-emerald-50' : 'border-amber-500 bg-amber-50'
+                                  : 'border-slate-100 bg-slate-50 hover:border-gold/30'
+                              }`}
+                            >
+                              <div className={`w-16 h-16 rounded-2xl flex items-center justify-center ${
+                                ancienEnduit === opt.value 
+                                  ? opt.value === 'avec_enduit' ? 'bg-emerald-500 text-white' : 'bg-amber-500 text-white'
+                                  : 'bg-white text-slate-300 border border-slate-200'
+                              }`}>
+                                {opt.value === 'avec_enduit' ? <Check size={32} /> : <Minus size={32} />}
+                              </div>
+                              <div className="text-center">
+                                <p className={`font-black uppercase tracking-widest text-sm ${
+                                  ancienEnduit === opt.value 
+                                    ? opt.value === 'avec_enduit' ? 'text-emerald-700' : 'text-amber-700'
+                                    : 'text-slate-900'
+                                }`}>{opt.label}</p>
+                                <p className="text-[9px] text-slate-400 font-bold mt-1">
+                                  {opt.value === 'avec_enduit' 
+                                    ? 'Grattage + enduit complet + peinture' 
+                                    : 'Impression + 2 couches finition'}
+                                </p>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {(exterieurType === 'monocouche' || exterieurType === 'placo') && (
+                      <div className="p-6 bg-emerald-50 rounded-2xl border border-emerald-100">
+                        <div className="flex items-center gap-4 mb-4">
+                          <Info className="text-emerald-500 shrink-0" size={20} />
+                          <p className="text-sm font-black text-emerald-700">
+                            {exterieurType === 'monocouche' ? 'Monocouche' : 'Placo extérieur'} — Système prédéfini
+                          </p>
+                        </div>
+                        <p className="text-[10px] text-emerald-600 font-bold leading-relaxed">
+                          {exterieurType === 'monocouche' 
+                            ? "Ce système comprend 1 couche d'impression et 2 couches de finition monocouche. Aucune option supplémentaire n'est nécessaire."
+                            : "Ce système comprend impression, enduit complet, primaire et 2 couches de finition. Aucune option supplémentaire n'est nécessaire."}
+                        </p>
+                      </div>
+                    )}
+                  </>
+                ) : element === 'plafond' ? (
                   <>
                     {/* Plafond Types */}
                     <div className="space-y-4">

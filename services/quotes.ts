@@ -9,6 +9,9 @@ export type PlafondType = 'placo' | 'beton' | 'bois';
 export type FinitionType = 'simple' | 'decorative';
 export type PeintureAspect = 'mat' | 'satine' | 'brillant';
 export type DecorativeOption = 'produit_decoratif' | 'papier_peint';
+export type ExterieurType = 'neuf' | 'monocouche' | 'ancien_peinture' | 'placo';
+export type ExterieurFinition = 'simple' | 'decoratif';
+export type AncienEnduit = 'avec_enduit' | 'sans_enduit';
 export type QuoteStatus = 'draft' | 'sent' | 'accepted' | 'rejected' | 'expired';
 export type OrderStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled';
 export type InvoiceStatus = 'unpaid' | 'paid' | 'overdue' | 'cancelled';
@@ -33,6 +36,11 @@ export interface QuoteInput {
   finition_type?: FinitionType;
   peinture_aspect?: PeintureAspect;
   decorative_option?: DecorativeOption;
+
+  // Extérieur options
+  exterieur_type?: ExterieurType;
+  exterieur_finition?: ExterieurFinition;
+  ancien_enduit?: AncienEnduit;
 
   // Client information (optional)
   client_name?: string;
@@ -87,6 +95,11 @@ export interface Quote {
   finition_type: FinitionType;
   peinture_aspect: PeintureAspect;
   decorative_option: DecorativeOption;
+
+  // Extérieur options
+  exterieur_type: ExterieurType;
+  exterieur_finition: ExterieurFinition;
+  ancien_enduit: AncienEnduit;
 
   // Computed system key
   system_key: string;
