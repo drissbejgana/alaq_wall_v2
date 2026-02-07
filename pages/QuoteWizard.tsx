@@ -26,7 +26,7 @@ interface SystemStep {
   name: string;
   description: string;
   unit_price: number;
-  quantity?: number;
+  quantity: number;
   unit?: string;
 }
 
@@ -195,7 +195,7 @@ const QuoteWizard: React.FC = () => {
     }
 
     const laborCost = currentSystem.reduce((acc, step) => {
-      return acc + (step.unit_price || 0) * surface;
+      return acc + (step.unit_price || 0) * (step.quantity || 1) * surface;
     }, 0);
 
     // Material costs based on selections
@@ -755,21 +755,34 @@ const QuoteWizard: React.FC = () => {
                       </div>
                     )}
 
-                    {(exterieurType === 'monocouche' || exterieurType === 'placo') && (
-                      <div className="p-6 bg-emerald-50 rounded-2xl border border-emerald-100">
-                        <div className="flex items-center gap-4 mb-4">
-                          <Info className="text-emerald-500 shrink-0" size={20} />
-                          <p className="text-sm font-black text-emerald-700">
-                            {exterieurType === 'monocouche' ? 'Monocouche' : 'Placo extérieur'} — Système prédéfini
-                          </p>
-                        </div>
-                        <p className="text-[10px] text-emerald-600 font-bold leading-relaxed">
-                          {exterieurType === 'monocouche' 
-                            ? "Ce système comprend 1 couche d'impression et 2 couches de finition monocouche. Aucune option supplémentaire n'est nécessaire."
-                            : "Ce système comprend impression, enduit complet, primaire et 2 couches de finition. Aucune option supplémentaire n'est nécessaire."}
-                        </p>
-                      </div>
-                    )}
+{(exterieurType === 'monocouche' || exterieurType === 'placo') && (
+  <div className="space-y-4">
+    <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-center gap-4">
+      <Info className="text-emerald-500 shrink-0" size={20} />
+      <p className="text-[10px] font-black text-emerald-700 uppercase tracking-widest">
+        Aperçu du système — Aucune option supplémentaire requise
+      </p>
+    </div>
+    
+    {/* Show actual system steps */}
+    <div className="space-y-3">
+      {currentSystem.map((systemStep, idx) => (
+        <div key={systemStep.id} className="flex items-center gap-4 p-4 bg-slate-50 rounded-xl border border-slate-100">
+          <div className="w-8 h-8 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-xs font-black text-slate-900">
+            {idx + 1}
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-bold text-slate-900">{systemStep.name}</p>
+            <p className="text-[9px] text-slate-400 font-bold">{systemStep.description}</p>
+          </div>
+          <div className="px-2 py-1 bg-white border border-slate-200 rounded-lg">
+            <p className="text-xs font-black text-slate-700">×{systemStep.quantity || 1}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+)}
                   </>
                 ) : element === 'plafond' ? (
                   <>
@@ -984,9 +997,8 @@ const QuoteWizard: React.FC = () => {
                         <p className="text-sm font-black text-slate-900">{systemStep.name}</p>
                         <p className="text-[9px] text-slate-400 font-bold">{systemStep.description}</p>
                       </div>
-                      <div className="text-right">
-                        {/* <p className="text-xs font-black text-slate-700">{((systemStep.unit_price || 0) * surface).toLocaleString()} DH</p>
-                        <p className="text-[9px] text-slate-400">{systemStep.unit_price} DH/m²</p> */}
+                      <div className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl">
+                        <p className="text-xs font-black text-slate-700">×{systemStep.quantity || 1}</p>
                       </div>
                     </div>
                   ))}

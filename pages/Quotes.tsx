@@ -57,11 +57,9 @@ const QuotesPage: React.FC = () => {
                       </span>
                     </div>
                     <p className="text-sm font-black text-slate-400 flex items-center gap-3 uppercase tracking-tighter">
-                      {quote.surface_area}m² 
+                      {quote.surface}m² 
                       <span className="w-1.5 h-1.5 bg-slate-200 rounded-full"></span> 
-                      {quote.dtu_level} 
-                      <span className="w-1.5 h-1.5 bg-slate-200 rounded-full"></span> 
-                      {quote.created_at}
+                      {new Date(quote.created_at).toLocaleDateString()}
                     </p>
                   </div>
                 </div>

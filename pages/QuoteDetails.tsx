@@ -218,6 +218,9 @@ const QuoteDetails: React.FC = () => {
                     <p className="text-sm font-bold text-slate-900">{step.name}</p>
                     <p className="text-[10px] text-slate-400">{step.description}</p>
                   </div>
+                  <div className="px-2.5 py-1 bg-white border border-slate-200 rounded-lg">
+                    <p className="text-xs font-black text-slate-600">×{(step as any).quantity || 1}</p>
+                  </div>
                   <p className="text-sm font-black text-slate-700">{Number(step.total_price).toLocaleString()} DH</p>
                 </div>
               ))}

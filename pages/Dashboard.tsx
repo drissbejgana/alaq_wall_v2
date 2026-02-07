@@ -19,7 +19,7 @@ const Dashboard: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [user, setUser] = useState<User | null>(null);
-
+  console.log(quotes)
   useEffect(() => {
     const currentUser = db.users.getCurrent();
     if (currentUser) {
@@ -130,10 +130,10 @@ const Dashboard: React.FC = () => {
                         </div>
                         <div>
                           <p className="text-base font-black text-slate-900 group-hover:text-gold transition-colors">
-                            {quote.quoteNumber}
+                            {quote.quote_number}
                           </p>
                           <p className="text-[11px] text-slate-400 font-black uppercase tracking-widest mt-0.5">
-                            {quote.date} • {quote.surfaceArea}m² • {quote.dtuLevel}
+                            {new Date(quote.created_at).toLocaleString()} • {quote.surface}m² 
                           </p>
                         </div>
                       </div>

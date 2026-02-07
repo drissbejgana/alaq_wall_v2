@@ -66,6 +66,7 @@ export interface QuoteSystemStep {
   step_id: string;
   name: string;
   description: string;
+  quantity: number;
   unit_price: number;
   total_price: number;
   order: number;
@@ -147,6 +148,7 @@ export interface CalculationPreviewStep {
   id: string;
   name: string;
   description: string;
+  quantity: number;
   unit_price: number;
   total_price: number;
   order: number;
