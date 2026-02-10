@@ -10,6 +10,11 @@ import Profile from './pages/Profile';
 import Simulator from './pages/Simulator';
 import Auth from './pages/Auth';
 import QuotesPage from './pages/Quotes';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import OrdersPage from './pages/Orders';
+import FacturesPage from './pages/Factures';
+import OrderDetailPage from './pages/Order';
+import FactureDetailPage from './pages/Facture';
 
 const MainLayout: React.FC = () => {
   const { user, logout } = useAuth();
@@ -115,8 +120,15 @@ const AppRoutes: React.FC = () => {
           <Route path="/" element={<Dashboard onNewQuote={() => navigate('/wizard')} activeSection="overview" />} />
           <Route path="/quotes" element={<QuotesPage />} />
           <Route path="/quotes/:id" element={<QuoteDetails />} />
-          {/* <Route path="/orders" element={<Dashboard onNewQuote={() => navigate('/wizard')} activeSection="orders" />} /> */}
-          {/* <Route path="/invoices" element={<Dashboard onNewQuote={() => navigate('/wizard')} activeSection="invoices" />} /> */}
+          
+          <Route path="/orders" element={<OrdersPage />} />
+
+          <Route path="/orders/:id" element={<OrderDetailPage />} />
+
+
+          <Route path="/factures" element={<FacturesPage />} />
+          <Route path="/factures/:id" element={<FactureDetailPage />} />
+
           <Route path="/simulator" element={<Simulator />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/wizard" element={<QuoteWizard />} />
@@ -128,13 +140,19 @@ const AppRoutes: React.FC = () => {
   );
 };
 
+const queryClient = new QueryClient();
+
 const App: React.FC = () => {
+  
   return (
-    <AuthProvider>
-      <Router>
-        <AppRoutes />
-      </Router>
-    </AuthProvider>
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <Router>
+          <AppRoutes />
+        </Router>
+      </AuthProvider>
+    </QueryClientProvider>
+
   );
 };
 

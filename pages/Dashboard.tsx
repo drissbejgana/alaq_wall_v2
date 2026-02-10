@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { db } from '../services/db';
-import { Order, Invoice, QuoteStatus, OrderStatus, InvoiceStatus, User } from '../types';
+import { Order, Invoice, QuoteStatus, InvoiceStatus, User, OrderStatus } from '../types';
 import { 
   FileText, 
   ClipboardList, 
@@ -10,29 +10,22 @@ import {
   DollarSign,
   ChevronRight
 } from 'lucide-react';
-import { useQuotes } from '@/hooks/useQuotes';
+import { useInvoices, useOrders, useQuotes } from '@/hooks/useQuotes';
 import { StatCard, getStatusInfo } from '@/components/shared/DashboardComponents';
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
-  const { quotes } = useQuotes();
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [user, setUser] = useState<User | null>(null);
-  console.log(quotes)
-  useEffect(() => {
-    const currentUser = db.users.getCurrent();
-    if (currentUser) {
-      setUser(currentUser);
-      setOrders(db.orders.get(currentUser.id).reverse());
-      setInvoices(db.invoices.get(currentUser.id).reverse());
-    }
-  }, []);
+  const { data: quotes = [] } = useQuotes();
+  const {data:orders=[]}=useOrders()
+  const {data:invoices=[]}=useInvoices()
 
-  const statusInfo = (status: any) => getStatusInfo(status, QuoteStatus, OrderStatus, InvoiceStatus);
+
+  const statusInfo = (status: any) => getStatusInfo(status);
 
   const stats = {
-    totalRevenue: invoices.reduce((acc, inv) => acc + inv.total, 0),
+    totalRevenue: invoices
+      .filter(i => i.status === InvoiceStatus.PAID)
+      .reduce((acc, inv) => acc + inv.total, 0),
     pendingQuotes: quotes.filter(q => q.status === QuoteStatus.DRAFT).length,
     activeOrders: orders.filter(o => o.status !== OrderStatus.COMPLETED).length,
     unpaidInvoices: invoices.filter(i => i.status === InvoiceStatus.UNPAID).length,
@@ -57,7 +50,7 @@ const Dashboard: React.FC = () => {
         {/* Stats Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           <StatCard 
-            label="Chiffre d'Affaires" 
+            label="Total Facturé" 
             value={`${stats.totalRevenue.toLocaleString()} DH`} 
             icon={DollarSign} 
             color="text-emerald-600" 

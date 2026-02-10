@@ -38,16 +38,19 @@ export enum QuoteStatus {
   REJECTED = 'rejected'
 }
 
+
+
 export enum OrderStatus {
-  PENDING = 'Pending',
-  IN_PROGRESS = 'In Progress',
-  COMPLETED = 'Completed'
+  PENDING = 'pending',
+  IN_PROGRESS = 'in_progress',
+  COMPLETED = 'completed',
+  CANCELLED = 'cancelled',
 }
 
 export enum InvoiceStatus {
-  UNPAID = 'Unpaid',
-  PAID = 'Paid',
-  PARTIAL = 'Partial'
+  UNPAID = 'unpaid',
+  PAID = 'paid',
+  PARTIAL = 'overdue'
 }
 
 export interface User {

@@ -28,7 +28,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onLogout, user, isOpen }) => {
     { id: '/simulator', label: 'Simulateur AI', icon: Sparkles },
     { id: '/quotes', label: 'Mes Devis', icon: FileText },
     { id: '/orders', label: 'Commandes', icon: ClipboardList },
-    { id: '/invoices', label: 'Factures', icon: Receipt },
+    { id: '/factures', label: 'Factures', icon: Receipt },
   ];
 
   return (

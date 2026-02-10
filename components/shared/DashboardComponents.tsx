@@ -2,19 +2,40 @@ import React from 'react';
 import { Filter, Plus } from 'lucide-react';
 
 // Status helper function
-export const getStatusInfo = (status: any, QuoteStatus: any, OrderStatus: any, InvoiceStatus: any) => {
+export const getStatusInfo = (status: string) => {
   switch (status) {
-    case QuoteStatus?.ACCEPTED:
-    case OrderStatus?.COMPLETED:
-    case InvoiceStatus?.PAID:
-      return { label: 'Terminé', color: 'text-emerald-600 bg-emerald-50 border-emerald-200' };
-    case QuoteStatus?.REJECTED:
-    case InvoiceStatus?.UNPAID:
-      return { label: 'En attente', color: 'text-rose-600 bg-rose-50 border-rose-200' };
-    case OrderStatus?.IN_PROGRESS:
+    // Quote statuses
+    case 'draft':
+      return { label: 'Brouillon', color: 'text-slate-600 bg-slate-50 border-slate-200' };
+    case 'sent':
+      return { label: 'Envoyé', color: 'text-violet-600 bg-violet-50 border-violet-200' };
+    case 'accepted':
+      return { label: 'Accepté', color: 'text-emerald-600 bg-emerald-50 border-emerald-200' };
+    case 'rejected':
+      return { label: 'Rejeté', color: 'text-rose-600 bg-rose-50 border-rose-200' };
+    case 'expired':
+      return { label: 'Expiré', color: 'text-orange-600 bg-orange-50 border-orange-200' };
+
+    // Order statuses
+    case 'pending':
+      return { label: 'En attente', color: 'text-amber-600 bg-amber-50 border-amber-200' };
+    case 'in_progress':
       return { label: 'En cours', color: 'text-blue-600 bg-blue-50 border-blue-200' };
+    case 'completed':
+      return { label: 'Terminé', color: 'text-teal-600 bg-teal-50 border-teal-200' };
+    case 'cancelled':
+      return { label: 'Annulé', color: 'text-red-600 bg-red-50 border-red-200' };
+
+    // Invoice statuses
+    case 'unpaid':
+      return { label: 'Impayé', color: 'text-pink-600 bg-pink-50 border-pink-200' };
+    case 'paid':
+      return { label: 'Payé', color: 'text-green-600 bg-green-50 border-green-200' };
+    case 'overdue':
+      return { label: 'En retard', color: 'text-red-700 bg-red-50 border-red-300' };
+
     default:
-      return { label: 'Brouillon', color: 'text-amber-600 bg-amber-50 border-amber-200' };
+      return { label: status, color: 'text-gray-600 bg-gray-50 border-gray-200' };
   }
 };
 
