@@ -33,10 +33,8 @@ export const authService = {
   async login(credentials: LoginCredentials) {
     const response = await api.post('/auth/token/', credentials);
     const { access, refresh } = response.data;
-
     localStorage.setItem('access_token', access);
     localStorage.setItem('refresh_token', refresh);
-
     return response.data;
   },
 
@@ -72,5 +70,24 @@ export const authService = {
   // Get stored token
   getToken(): string | null {
     return localStorage.getItem('access_token');
+  },
+
+  // -----------------------------------------------------------------------
+  // Google OAuth2
+  // -----------------------------------------------------------------------
+
+  /** Ask the backend for the Google consent-screen URL, then redirect. */
+  async getGoogleAuthURL(): Promise<string> {
+    const response = await api.get('/auth/google/url/');
+    return response.data.authorization_url;
+  },
+
+  /** Exchange the Google authorization code for JWT tokens. */
+  async googleCallback(code: string) {
+    const response = await api.post('/auth/google/callback/', { code });
+    const { access, refresh } = response.data;
+    localStorage.setItem('access_token', access);
+    localStorage.setItem('refresh_token', refresh);
+    return response.data;
   },
 };

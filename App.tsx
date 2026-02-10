@@ -15,6 +15,7 @@ import OrdersPage from './pages/Orders';
 import FacturesPage from './pages/Factures';
 import OrderDetailPage from './pages/Order';
 import FactureDetailPage from './pages/Facture';
+import GoogleCallback from './components/GoogleCallback';
 
 const MainLayout: React.FC = () => {
   const { user, logout } = useAuth();
@@ -132,8 +133,11 @@ const AppRoutes: React.FC = () => {
           <Route path="/simulator" element={<Simulator />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/wizard" element={<QuoteWizard />} />
+          
         </Route>
       </Route>
+
+      <Route path="/auth/google/callback" element={<GoogleCallback />} />
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

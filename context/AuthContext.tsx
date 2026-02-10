@@ -8,6 +8,8 @@ interface AuthContextType {
   login: (credentials: LoginCredentials) => Promise<void>;
   register: (data: RegisterData) => Promise<void>;
   logout: () => void;
+  googleLogin: (code: string) => Promise<void>;
+  getGoogleAuthURL: () => Promise<void>;
   isAuthenticated: boolean;
 }
 
@@ -59,10 +61,41 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // Auto-login after register
       await login({ username: data.username, password: data.password });
     } catch (err: any) {
-      const message = err.response?.data?.username?.[0] 
-        || err.response?.data?.email?.[0]
-        || err.response?.data?.password?.[0]
-        || 'Erreur lors de l\'inscription';
+      const message =
+        err.response?.data?.username?.[0] ||
+        err.response?.data?.email?.[0] ||
+        err.response?.data?.password?.[0] ||
+        "Erreur lors de l'inscription";
+      setError(message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /** Redirect the user to Google's consent screen. */
+  const getGoogleAuthURL = async () => {
+    setError(null);
+    try {
+      const url = await authService.getGoogleAuthURL();
+      window.location.href = url;
+    } catch (err: any) {
+      const message =
+        err.response?.data?.error || 'Impossible de se connecter avec Google';
+      setError(message);
+    }
+  };
+
+  /** Called from GoogleCallback after Google redirects back with a code. */
+  const googleLogin = async (code: string) => {
+    setError(null);
+    setLoading(true);
+    try {
+      const data = await authService.googleCallback(code);
+      setUser(data.user);
+    } catch (err: any) {
+      const message =
+        err.response?.data?.error || 'Erreur de connexion Google';
       setError(message);
       throw err;
     } finally {
@@ -84,6 +117,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         login,
         register,
         logout,
+        googleLogin,
+        getGoogleAuthURL,
         isAuthenticated: !!user,
       }}
     >
