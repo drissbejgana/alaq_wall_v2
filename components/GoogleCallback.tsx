@@ -16,7 +16,6 @@ const GoogleCallback: React.FC = () => {
       const code = searchParams.get('code');
       const error = searchParams.get('error');
 
-      // Google returned an error (user cancelled, etc.)
       if (error) {
         setStatus('error');
         setErrorMessage(
@@ -27,18 +26,15 @@ const GoogleCallback: React.FC = () => {
         return;
       }
 
-      // No code present — invalid redirect
       if (!code) {
         setStatus('error');
         setErrorMessage("Aucun code d'autorisation reçu de Google.");
         return;
       }
 
-      // Exchange the code for JWT tokens via the backend
       try {
         await googleLogin(code);
         setStatus('success');
-        // Short delay so the user can see the success state
         setTimeout(() => navigate('/', { replace: true }), 600);
       } catch (err: any) {
         setStatus('error');
@@ -50,13 +46,11 @@ const GoogleCallback: React.FC = () => {
     };
 
     handleCallback();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
       <div className="w-full max-w-sm bg-white border border-slate-200 rounded-[2rem] p-10 shadow-2xl text-center space-y-6">
-        {/* ---------- Loading ---------- */}
         {status === 'loading' && (
           <>
             <div className="flex justify-center">
@@ -75,7 +69,6 @@ const GoogleCallback: React.FC = () => {
           </>
         )}
 
-        {/* ---------- Success ---------- */}
         {status === 'success' && (
           <>
             <div className="flex justify-center">
@@ -94,7 +87,6 @@ const GoogleCallback: React.FC = () => {
           </>
         )}
 
-        {/* ---------- Error ---------- */}
         {status === 'error' && (
           <>
             <div className="flex justify-center">

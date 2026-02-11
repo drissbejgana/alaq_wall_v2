@@ -26,7 +26,8 @@ const FactureDetailPage: React.FC = () => {
   const { data: orders = [] } = useOrders();
 
   const facture = invoices.find((f) => f.id === id);
-  const relatedOrder = orders.find((o: any) => o.id === (facture as any)?.order_id);
+
+  const relatedOrder = orders.find((o: any) => o.order_number === (facture as any)?.order_number);
 
   const handlePrint = () => {
     window.print();

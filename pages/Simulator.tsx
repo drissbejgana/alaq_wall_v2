@@ -55,7 +55,6 @@ const Simulator: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-10">
-        {/* Controls Panel */}
         <div className="lg:col-span-1 space-y-6">
           <div className="bg-white border border-slate-200 rounded-[2.5rem] p-8 shadow-xl shadow-slate-200/40 space-y-8">
             <div className="space-y-4">

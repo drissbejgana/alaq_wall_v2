@@ -2,7 +2,6 @@ import axios from 'axios';
 
 const API_URL = 'http://localhost:8000/api';
 
-// Create axios instance
 const api = axios.create({
   baseURL: API_URL,
   headers: {
@@ -10,7 +9,6 @@ const api = axios.create({
   },
 });
 
-// Add token to requests automatically
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('access_token');
@@ -22,7 +20,6 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Handle token refresh on 401 errors
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -45,7 +42,6 @@ api.interceptors.response.use(
           return api(originalRequest);
         }
       } catch (refreshError) {
-        // Refresh failed - logout user
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
         window.location.href = '/login';

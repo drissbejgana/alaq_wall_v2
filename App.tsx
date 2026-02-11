@@ -33,7 +33,6 @@ const MainLayout: React.FC = () => {
     navigate('/auth');
   };
 
-  // Convert backend user to your User type format
   const userForComponents = user ? {
     id: user.id,
     email: user.email,
@@ -97,7 +96,6 @@ const PublicRoute: React.FC = () => {
     );
   }
 
-  // Redirect to dashboard if already logged in
   if (isAuthenticated) {
     return <Navigate to="/" replace />;
   }
@@ -110,12 +108,10 @@ const AppRoutes: React.FC = () => {
 
   return (
     <Routes>
-      {/* Public routes - redirect to dashboard if logged in */}
       <Route element={<PublicRoute />}>
         <Route path="/auth" element={<Auth />} />
       </Route>
       
-      {/* Protected routes */}
       <Route element={<ProtectedRoute />}>
         <Route element={<MainLayout />}>
           <Route path="/" element={<Dashboard onNewQuote={() => navigate('/wizard')} activeSection="overview" />} />

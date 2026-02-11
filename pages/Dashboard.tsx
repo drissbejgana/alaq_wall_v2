@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { db } from '../services/db';
 import { Order, Invoice, QuoteStatus, InvoiceStatus, User, OrderStatus } from '../types';
 import { 
   FileText, 

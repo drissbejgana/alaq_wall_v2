@@ -131,7 +131,6 @@ const Header: React.FC<HeaderProps> = ({ user, onMenuToggle }) => {
           <Menu size={22} />
         </button>
 
-        {/* Search Bar */}
         <div ref={searchRef} className="relative hidden sm:block">
           <div className={`flex items-center gap-3 bg-slate-50 border rounded-xl px-4 py-2 w-64 md:w-96 transition-all group ${
             isFocused ? 'ring-2 ring-gold/20 border-gold bg-white shadow-lg' : 'border-slate-200'
@@ -160,7 +159,6 @@ const Header: React.FC<HeaderProps> = ({ user, onMenuToggle }) => {
             )}
           </div>
 
-          {/* Dropdown Results */}
           {showDropdown && (
             <div className="absolute top-full left-0 mt-2 w-full bg-white border border-slate-200 rounded-2xl shadow-2xl shadow-slate-200/60 overflow-hidden z-50 animate-fade-in">
               {totalResults === 0 ? (

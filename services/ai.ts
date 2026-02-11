@@ -4,8 +4,7 @@ import { GoogleGenAI } from "@google/genai";
 export const aiService = {
   async repaintRoom(imageBase64: string, colorName: string, finish: string): Promise<string | null> {
     try {
-      // Fix: Create a new GoogleGenAI instance right before making an API call to ensure current key is used
-      const ai = new GoogleGenAI({ apiKey: "AIzaSyAeCUL7j5JXxTaUxrszFA1CLeq3pvI-xtQ"});
+      const ai = new GoogleGenAI({ apiKey: "hh"});
       const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash-image',
         contents: {
@@ -23,7 +22,6 @@ export const aiService = {
         },
       });
 
-      // Fix: Iterate through parts to find the image part, as per Gemini API best practices
       const candidate = response.candidates?.[0];
       if (candidate?.content?.parts) {
         for (const part of candidate.content.parts) {

@@ -9,7 +9,6 @@ import {
 } from 'lucide-react';
 import { dtuService } from '@/services/dtu';
 
-// Types
 type ProjectType = 'batiment' | 'industriel';
 type Zone = 'interieur' | 'exterieur';
 type Element = 'plafond' | 'mur';
@@ -50,7 +49,6 @@ interface ReferenceData {
   };
 }
 
-// Icon mapping for plafond types
 const PLAFOND_ICONS: Record<string, string> = {
   placo: '🔲',
   enduit_ciment: '🧱',
@@ -58,20 +56,17 @@ const PLAFOND_ICONS: Record<string, string> = {
   platre_projete: '⬜',
 };
 
-// Icon mapping for decorative options
 const DECORATIVE_ICONS: Record<string, string> = {
   produit_decoratif: '✨',
   papier_peint: '📜',
 };
 
-// Aspect descriptions
 const ASPECT_DESCRIPTIONS: Record<string, string> = {
   mat: 'Finition sans reflet, idéale pour masquer les imperfections',
   satine: 'Légèrement brillant, facile à nettoyer',
   brillant: 'Très réfléchissant, effet laqué',
 };
 
-// Extérieur type icons
 const EXTERIEUR_ICONS: Record<string, string> = {
   neuf: '🏗️',
   monocouche: '🖌️',
@@ -79,7 +74,6 @@ const EXTERIEUR_ICONS: Record<string, string> = {
   placo: '🔲',
 };
 
-// Extérieur type descriptions
 const EXTERIEUR_DESCRIPTIONS: Record<string, string> = {
   neuf: 'Façade neuve, premier traitement',
   monocouche: 'Application monocouche façade',
@@ -91,43 +85,35 @@ const QuoteWizard: React.FC = () => {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   
-  // References from API
   const [references, setReferences] = useState<ReferenceData | null>(null);
   const [loadingReferences, setLoadingReferences] = useState(true);
   
-  // Loading & error states
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Step 1: Project Type & Zone
   const [projectType, setProjectType] = useState<ProjectType>('batiment');
   const [zone, setZone] = useState<Zone>('interieur');
 
-  // Step 2: Element & Surface
   const [element, setElement] = useState<Element>('mur');
   const [surface, setSurface] = useState(20);
 
-  // Step 3: Element-specific options
-  // Plafond
+
   const [plafondType, setPlafondType] = useState<PlafondType>('placo');
   const [placoFini, setPlacoFini] = useState(true);
-  // Mur
+
   const [finitionType, setFinitionType] = useState<FinitionType>('simple');
   const [peintureAspect, setPeintureAspect] = useState<PeintureAspect>('satine');
   const [decorativeOption, setDecorativeOption] = useState<DecorativeOption>('produit_decoratif');
 
-  // Extérieur
   const [exterieurType, setExterieurType] = useState<ExterieurType>('neuf');
   const [exterieurFinition, setExterieurFinition] = useState<ExterieurFinition>('simple');
   const [ancienEnduit, setAncienEnduit] = useState<AncienEnduit>('avec_enduit');
 
-  // Step 4: Client info
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
   const [clientAddress, setClientAddress] = useState('');
   const [notes, setNotes] = useState('');
 
-  // Load references from API
   useEffect(() => {
     async function loadReferences() {
       try {
@@ -144,7 +130,6 @@ const QuoteWizard: React.FC = () => {
     loadReferences();
   }, []);
 
-  // Get current system based on selections
   const currentSystem = useMemo((): SystemStep[] => {
     if (!references) return [];
     
@@ -170,7 +155,6 @@ const QuoteWizard: React.FC = () => {
       }
       return references.systems.plafond_standard;
     } else {
-      // Mur
       if (finitionType === 'simple') {
         return references.systems.mur_peinture;
       } else {
@@ -181,7 +165,6 @@ const QuoteWizard: React.FC = () => {
     }
   }, [references, zone, element, plafondType, placoFini, finitionType, decorativeOption, exterieurType, exterieurFinition, ancienEnduit]);
 
-  // Calculate costs
   const calculations = useMemo(() => {
     if (!references) {
       return {
@@ -198,12 +181,10 @@ const QuoteWizard: React.FC = () => {
       return acc + (step.unit_price || 0) * (step.quantity || 1) * surface;
     }, 0);
 
-    // Material costs based on selections
     let materialCost = 0;
     const materials: { name: string; quantity: number; unit: string; unitPrice: number }[] = [];
     const isExt = zone === 'exterieur';
 
-    // Impression
     const impKey = isExt ? 'impression_ext' : 'impression';
     const impPrice = references.material_prices[impKey] || 12;
     const impressionQty = Math.ceil(surface / 10);
@@ -307,7 +288,6 @@ const QuoteWizard: React.FC = () => {
     };
   }, [references, currentSystem, surface, zone, element, plafondType, placoFini, finitionType, decorativeOption, peintureAspect, exterieurType, exterieurFinition, ancienEnduit]);
 
-  // Get summary text
   const getSummaryText = () => {
     if (!references) return '';
     
@@ -380,7 +360,6 @@ const QuoteWizard: React.FC = () => {
 
   const totalSteps = 5;
 
-  // Show loading state while references are loading
   if (loadingReferences || !references) {
     return (
       <div className="max-w-6xl mx-auto px-4 py-20 flex items-center justify-center">
@@ -394,13 +373,11 @@ const QuoteWizard: React.FC = () => {
 
   return (
     <div className="max-w-6xl mx-auto px-4 animate-fade-in pb-20">
-      {/* Header */}
       <div className="mb-10 text-center">
         <p className="text-[10px] font-black text-gold uppercase tracking-[0.3em] mb-2">Nouveau Devis</p>
         <h1 className="text-5xl font-black text-slate-900 tracking-tight">Configuration Projet</h1>
       </div>
 
-      {/* Error message */}
       {error && (
         <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-2xl flex items-center gap-3">
           <AlertTriangle className="text-red-500 shrink-0" size={20} />
@@ -431,7 +408,6 @@ const QuoteWizard: React.FC = () => {
         <div className="lg:col-span-3 space-y-8">
           <div className="bg-white border border-slate-200 p-8 md:p-10 rounded-[3rem] shadow-xl relative overflow-hidden animate-scale-in min-h-[500px]">
 
-            {/* STEP 1: Project Type & Zone */}
             {step === 1 && (
               <div className="space-y-10 animate-fade-in">
                 <div className="flex items-center gap-5 border-b border-slate-50 pb-8">
@@ -444,7 +420,6 @@ const QuoteWizard: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Project Type */}
                 <div className="space-y-4">
                   <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">Type de projet</label>
                   <div className="grid grid-cols-2 gap-4">
@@ -485,7 +460,6 @@ const QuoteWizard: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Zone */}
                 <div className="space-y-4">
                   <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">Zone</label>
                   <div className="grid grid-cols-2 gap-4">
@@ -523,7 +497,6 @@ const QuoteWizard: React.FC = () => {
               </div>
             )}
 
-            {/* STEP 2: Element & Surface */}
             {step === 2 && (
               <div className="space-y-10 animate-fade-in">
                 <div className="flex items-center gap-5 border-b border-slate-50 pb-8">
@@ -542,7 +515,6 @@ const QuoteWizard: React.FC = () => {
 
                 {zone === 'exterieur' ? (
                   <>
-                    {/* Extérieur Types */}
                     <div className="space-y-4">
                       <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">Type extérieur</label>
                       <div className="grid grid-cols-2 gap-4">
@@ -578,7 +550,6 @@ const QuoteWizard: React.FC = () => {
                   </>
                 ) : (
                   <>
-                    {/* Element (intérieur) */}
                     <div className="space-y-4">
                       <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">Élément</label>
                       <div className="grid grid-cols-2 gap-4">
@@ -614,7 +585,6 @@ const QuoteWizard: React.FC = () => {
                   </>
                 )}
 
-                {/* Surface */}
                 <div className="space-y-4">
                   <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">Surface (m²)</label>
                   <div className="flex items-center gap-6">
@@ -965,7 +935,6 @@ const QuoteWizard: React.FC = () => {
               </div>
             )}
 
-            {/* STEP 4: System */}
             {step === 4 && (
               <div className="space-y-10 animate-fade-in">
                 <div className="flex items-center gap-5 border-b border-slate-50 pb-8">
@@ -978,7 +947,6 @@ const QuoteWizard: React.FC = () => {
                   </div>
                 </div>
 
-                {/* System info */}
                 <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-center gap-4">
                   <Info className="text-emerald-500 shrink-0" size={20} />
                   <p className="text-[10px] font-black text-emerald-700 uppercase tracking-widest">
@@ -1006,7 +974,6 @@ const QuoteWizard: React.FC = () => {
               </div>
             )}
 
-            {/* STEP 5: Validation */}
             {step === 5 && (
               <div className="space-y-10 animate-fade-in">
                 <div className="flex items-center gap-5 border-b border-slate-50 pb-8">
@@ -1019,7 +986,6 @@ const QuoteWizard: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Client info */}
                 <div className="bg-white border border-blue-100 rounded-[2rem] p-6 space-y-4">
                   <h4 className="text-sm font-black text-gold uppercase tracking-widest">Informations Client (optionnel)</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1066,7 +1032,6 @@ const QuoteWizard: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Summary */}
                 <div className="bg-slate-50 p-8 rounded-[2rem] border border-slate-100">
                   <h4 className="text-[10px] font-black text-gold uppercase tracking-[0.2em] mb-6">Récapitulatif</h4>
                   <div className="space-y-4">
@@ -1092,7 +1057,6 @@ const QuoteWizard: React.FC = () => {
             )}
           </div>
 
-          {/* Navigation */}
           <div className="flex justify-between items-center px-4 pt-4">
             <button
               onClick={() => step > 1 && setStep(step - 1)}
@@ -1133,7 +1097,6 @@ const QuoteWizard: React.FC = () => {
           </div>
         </div>
 
-        {/* Financial sidebar */}
         <div className="lg:col-span-1">
           <div className="sticky top-10 bg-white border border-slate-200 rounded-[3.5rem] p-10 shadow-2xl relative overflow-hidden animate-fade-in">
             <div className="absolute top-0 left-0 w-full h-1 bg-gold"></div>

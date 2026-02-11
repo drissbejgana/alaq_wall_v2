@@ -37,19 +37,16 @@ export interface QuoteInput {
   peinture_aspect?: PeintureAspect;
   decorative_option?: DecorativeOption;
 
-  // Extérieur options
   exterieur_type?: ExterieurType;
   exterieur_finition?: ExterieurFinition;
   ancien_enduit?: AncienEnduit;
 
-  // Client information (optional)
   client_name?: string;
   client_address?: string;
   client_phone?: string;
   notes?: string;
 }
 
-// ==================== RELATED TYPES ====================
 
 export interface QuoteMaterial {
   id: string;
@@ -72,7 +69,6 @@ export interface QuoteSystemStep {
   order: number;
 }
 
-// ==================== MAIN TYPES ====================
 
 export interface Quote {
   id: string;
@@ -82,51 +78,41 @@ export interface Quote {
   status: QuoteStatus;
   valid_until: string;
 
-  // Step 1: Project Type & Zone
   project_type: ProjectType;
   zone: Zone;
 
-  // Step 2: Element & Surface
   element: Element;
   surface: number;
 
-  // Step 3: Element-specific options
   plafond_type: PlafondType;
   placo_fini: boolean;
   finition_type: FinitionType;
   peinture_aspect: PeintureAspect;
   decorative_option: DecorativeOption;
 
-  // Extérieur options
   exterieur_type: ExterieurType;
   exterieur_finition: ExterieurFinition;
   ancien_enduit: AncienEnduit;
 
-  // Computed system key
   system_key: string;
 
-  // Cost breakdown
   labor_cost: number;
   material_cost: number;
   subtotal: number;
   tax: number;
   total: number;
 
-  // Client information
   client_name: string;
   client_address: string;
   client_phone: string;
   notes: string;
 
-  // Related data
   materials: QuoteMaterial[];
   system_steps: QuoteSystemStep[];
 
-  // Computed summary text
   summary: string;
 }
 
-// List view (subset of fields)
 export interface QuoteListItem {
   id: string;
   quote_number: string;
@@ -142,7 +128,6 @@ export interface QuoteListItem {
   summary: string;
 }
 
-// ==================== CALCULATION PREVIEW ====================
 
 export interface CalculationPreviewStep {
   id: string;
@@ -177,7 +162,6 @@ export interface CalculationPreview {
   costs: CalculationPreviewCosts;
 }
 
-// ==================== ORDER ====================
 
 export interface Order {
   id: string;
@@ -197,7 +181,6 @@ export interface OrderListItem {
   total: number;
 }
 
-// ==================== INVOICE ====================
 
 export interface Invoice {
   id: string;
@@ -220,7 +203,6 @@ export interface InvoiceListItem {
   due_date: string;
 }
 
-// ==================== DASHBOARD ====================
 
 export interface DashboardStats {
   total_revenue: number;
@@ -233,7 +215,6 @@ export interface DashboardStats {
   conversion_rate: number;
 }
 
-// ==================== PAGINATION ====================
 
 export interface PaginatedResponse<T> {
   count: number;
@@ -242,12 +223,9 @@ export interface PaginatedResponse<T> {
   results: T[];
 }
 
-// ==================== SERVICE ====================
 
 export const quotesService = {
-  // ==================== QUOTES ====================
 
-  // Get all quotes (paginated list)
   async getQuotes(params?: {
     status?: QuoteStatus;
     element?: Element;
@@ -260,60 +238,50 @@ export const quotesService = {
     return response.data;
   },
 
-  // Get single quote (full detail)
   async getQuote(id: string): Promise<Quote> {
     const response = await api.get(`/quotes/${id}/`);
     return response.data;
   },
 
-  // Create quote
   async createQuote(data: QuoteInput): Promise<Quote> {
     const response = await api.post('/quotes/', data);
     return response.data;
   },
 
-  // Update quote
   async updateQuote(id: string, data: Partial<QuoteInput>): Promise<Quote> {
     const response = await api.put(`/quotes/${id}/`, data);
     return response.data;
   },
 
-  // Partial update quote
   async patchQuote(id: string, data: Partial<QuoteInput>): Promise<Quote> {
     const response = await api.patch(`/quotes/${id}/`, data);
     return response.data;
   },
 
-  // Delete quote
   async deleteQuote(id: string): Promise<void> {
     await api.delete(`/quotes/${id}/`);
   },
 
-  // Update quote status
   async updateQuoteStatus(id: string, status: QuoteStatus): Promise<Quote> {
     const response = await api.patch(`/quotes/${id}/status/`, { status });
     return response.data;
   },
 
-  // Accept quote (creates order + invoice)
   async acceptQuote(id: string): Promise<{ quote: Quote; order: Order; invoice: Invoice }> {
     const response = await api.post(`/quotes/${id}/accept/`);
     return response.data;
   },
 
-  // Duplicate quote
   async duplicateQuote(id: string): Promise<Quote> {
     const response = await api.post(`/quotes/${id}/duplicate/`);
     return response.data;
   },
 
-  // Calculate preview (without saving)
   async calculatePreview(data: QuoteInput): Promise<CalculationPreview> {
     const response = await api.post('/calculate/', data);
     return response.data;
   },
 
-  // Download PDF
   async downloadPDF(id: string): Promise<void> {
     const token = localStorage.getItem('access_token');
     const response = await fetch(`${api.defaults.baseURL}/quotes/${id}/pdf/`, {
@@ -327,7 +295,6 @@ export const quotesService = {
       throw new Error('Failed to download PDF');
     }
 
-    // Get filename from header or use default
     const contentDisposition = response.headers.get('content-disposition');
     let filename = `Devis.pdf`;
     if (contentDisposition) {
@@ -335,7 +302,6 @@ export const quotesService = {
       if (match) filename = match[1];
     }
 
-    // Download the file
     const blob = await response.blob();
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -347,7 +313,6 @@ export const quotesService = {
     document.body.removeChild(a);
   },
 
-  // ==================== ORDERS ====================
 
   async getOrders(params?: {
     status?: OrderStatus;
@@ -367,7 +332,6 @@ export const quotesService = {
     return response.data;
   },
 
-  // ==================== INVOICES ====================
 
   async getInvoices(params?: {
     status?: InvoiceStatus;
@@ -387,7 +351,6 @@ export const quotesService = {
     return response.data;
   },
 
-  // ==================== DASHBOARD ====================
 
   async getDashboard(): Promise<DashboardStats> {
     const response = await api.get('/dashboard/');

@@ -1,10 +1,8 @@
 import React from 'react';
 import { Filter, Plus } from 'lucide-react';
 
-// Status helper function
 export const getStatusInfo = (status: string) => {
   switch (status) {
-    // Quote statuses
     case 'draft':
       return { label: 'Brouillon', color: 'text-slate-600 bg-slate-50 border-slate-200' };
     case 'sent':
@@ -16,7 +14,6 @@ export const getStatusInfo = (status: string) => {
     case 'expired':
       return { label: 'Expiré', color: 'text-orange-600 bg-orange-50 border-orange-200' };
 
-    // Order statuses
     case 'pending':
       return { label: 'En attente', color: 'text-amber-600 bg-amber-50 border-amber-200' };
     case 'in_progress':
@@ -26,7 +23,6 @@ export const getStatusInfo = (status: string) => {
     case 'cancelled':
       return { label: 'Annulé', color: 'text-red-600 bg-red-50 border-red-200' };
 
-    // Invoice statuses
     case 'unpaid':
       return { label: 'Impayé', color: 'text-pink-600 bg-pink-50 border-pink-200' };
     case 'paid':
@@ -39,7 +35,6 @@ export const getStatusInfo = (status: string) => {
   }
 };
 
-// Section Header Component
 interface SectionHeaderProps {
   title: string;
   count: number;
@@ -77,7 +72,6 @@ export const SectionHeader: React.FC<SectionHeaderProps> = ({
   </div>
 );
 
-// Stat Card Component
 interface StatCardProps {
   label: string;
   value: string | number;
@@ -107,7 +101,6 @@ export const StatCard: React.FC<StatCardProps> = ({ label, value, icon: Icon, co
   </div>
 );
 
-// Empty State Component
 interface EmptyStateProps {
   icon: React.ElementType;
   text: string;

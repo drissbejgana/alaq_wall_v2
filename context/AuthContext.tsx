@@ -58,7 +58,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setLoading(true);
     try {
       await authService.register(data);
-      // Auto-login after register
       await login({ username: data.username, password: data.password });
     } catch (err: any) {
       const message =
@@ -86,7 +85,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  /** Called from GoogleCallback after Google redirects back with a code. */
   const googleLogin = async (code: string) => {
     setError(null);
     setLoading(true);

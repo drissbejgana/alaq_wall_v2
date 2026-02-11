@@ -1,47 +1,30 @@
 
 import React, { useState, useEffect } from 'react';
-import { db } from '../services/db';
 import { User } from '../types';
 import { Save, RefreshCcw, UserCircle, Mail, Lock, CheckCircle2, Camera, ShieldCheck, BellRing } from 'lucide-react';
 import { authService } from '@/services/auth';
+import { useAuth } from '@/context/AuthContext';
 
 const Profile: React.FC = () => {
-  const currentUser = db.users.getCurrent();
-  const [name, setName] = useState(currentUser?.name || '');
-  const [email, setEmail] = useState(currentUser?.email || '');
+  const {user}=useAuth()
+  const [nom,setNom]=useState(user.last_name)
+  const [prenom,setPrenom]=useState(user.first_name)
+
+  const [email,setEmail]=useState(user.email)
   const [isSaving, setIsSaving] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
 
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentUser) return;
+    if (!user) return;
+
+    const res= await authService.updateProfile({first_name:prenom,last_name:nom})
 
     setIsSaving(true);
-    setTimeout(() => {
-      const updatedUser = { ...currentUser, name, email };
-      const allUsers = db.users.get();
-      const newUsers = allUsers.map(u => u.id === currentUser.id ? updatedUser : u);
-      localStorage.setItem('archiwalls_users', JSON.stringify(newUsers));
-      db.users.setCurrent(updatedUser);
-      
-      setIsSaving(false);
-      setShowSuccess(true);
-      setTimeout(() => setShowSuccess(false), 3000);
-      window.dispatchEvent(new Event('storage'));
-    }, 800);
+   
   };
 
-useEffect(()=>{
-  async function fetchProfile() {
-     const res = await authService.getProfile() 
-     setName(`${res.first_name} ${res.last_name}`)
-     setEmail(res.email)
-     console.log(res)
-
-  } 
-  fetchProfile()
-},[])
 
   return (
     <div className="space-y-10 animate-fade-in">
@@ -70,7 +53,7 @@ useEffect(()=>{
                   <Camera size={18} />
                 </button>
               </div>
-              <h3 className="mt-6 text-2xl font-black text-slate-900 tracking-tight">{name}</h3>
+              <h3 className="mt-6 text-2xl font-black text-slate-900 tracking-tight">{`${nom} ${prenom}`}</h3>
               <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mt-1">{email}</p>
             </div>
           </div>
@@ -103,14 +86,29 @@ useEffect(()=>{
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               <div className="space-y-3">
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-2">Nom & Prénom</label>
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-2">Nom</label>
                 <div className="relative">
                   <UserCircle className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300" size={20} />
                   <input
                     type="text"
                     required
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
+                    value={nom}
+                    disabled
+                    onChange={(e) => setNom(e.target.value)}
+                    className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl py-4 pl-14 pr-6 font-black text-slate-900 outline-none focus:border-gold focus:ring-4 focus:ring-gold/5 transition-all"
+                  />
+                </div>
+              </div>
+                <div className="space-y-3">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] block ml-2">Prénom</label>
+                <div className="relative">
+                  <UserCircle className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300" size={20} />
+                  <input
+                    type="text"
+                    required
+                    value={prenom}
+                    disabled
+                    onChange={(e) => setPrenom(e.target.value)}
                     className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl py-4 pl-14 pr-6 font-black text-slate-900 outline-none focus:border-gold focus:ring-4 focus:ring-gold/5 transition-all"
                   />
                 </div>

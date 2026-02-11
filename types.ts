@@ -144,8 +144,8 @@ export interface AppParameters {
   coverageRate: number;
   vatRate: number;
   paintPrices: Record<PaintType, number>;
-  paintCoverageRates: Record<PaintType, number>; // m²/L per paint type
+  paintCoverageRates: Record<PaintType, number>; 
   conditionMultipliers: Record<WallCondition, number>;
   dtuMultipliers: Record<DTULevel, number>;
-  minCoatsPerLevel: Record<DTULevel, number>;    // Minimum coats enforced by DTU
+  minCoatsPerLevel: Record<DTULevel, number>;    
 }

@@ -30,13 +30,11 @@ export interface DTUReference {
 }
 
 export const dtuService = {
-  // Get all DTU reference data
   async getReference(): Promise<DTUReference> {
     const response = await api.get('/dtu/reference/');
     return response.data;
   },
 
-  // Get preparations for substrate/level
   async getPreparations(substrate: string, level: string) {
     const response = await api.get('/dtu/preparations/', {
       params: { substrate, level },
