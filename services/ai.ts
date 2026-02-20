@@ -4,7 +4,7 @@ import { GoogleGenAI } from "@google/genai";
 export const aiService = {
   async repaintRoom(imageBase64: string, colorName: string, finish: string): Promise<string | null> {
     try {
-      const ai = new GoogleGenAI({ apiKey: "hh"});
+      const ai = new GoogleGenAI({ apiKey: "AIzaSyA1uEDUL3wnJVntYHpjSISPC70A9Ss0UU8"});
       const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash-image',
         contents: {
