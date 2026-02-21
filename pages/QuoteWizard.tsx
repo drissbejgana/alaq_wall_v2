@@ -585,45 +585,33 @@ const QuoteWizard: React.FC = () => {
                   </>
                 )}
 
-                <div className="space-y-4">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">Surface (m²)</label>
-                  <div className="flex items-center gap-6">
-                    <button
-                      onClick={() => setSurface(Math.max(1, surface - 5))}
-                      className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 transition-all"
-                    >
-                      <Minus size={24} />
-                    </button>
-                    <div className="flex-1">
-                      <input
-                        type="range"
-                        min="1"
-                        max="500"
-                        value={surface}
-                        onChange={(e) => setSurface(Number(e.target.value))}
-                        className="w-full accent-gold h-3 rounded-full appearance-none bg-slate-100"
-                      />
-                    </div>
-                    <button
-                      onClick={() => setSurface(Math.min(500, surface + 5))}
-                      className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 transition-all"
-                    >
-                      <Plus size={24} />
-                    </button>
-                  </div>
-                  <div className="bg-slate-900 rounded-[2rem] p-8 text-center">
-                    <p className="text-[10px] font-black text-gold uppercase tracking-[0.2em] mb-2">Surface à traiter</p>
-                    <div className="flex items-baseline justify-center gap-2">
-                      <input
-                        type="number"
-                        value={surface}
-                        onChange={(e) => setSurface(Math.max(1, Math.min(500, Number(e.target.value))))}
-                        className="bg-transparent text-6xl font-black text-white text-center w-32 outline-none"
-                      />
-                      <span className="text-2xl font-black text-gold">m²</span>
-                    </div>
-                  </div>
-                </div>
+        <div className="space-y-4">
+          <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">Surface (m²)</label>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setSurface(Math.max(1, surface - 1))}
+              className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 transition-all shrink-0"
+            >
+              <Minus size={24} />
+            </button>
+            <div className="flex-1 flex items-center justify-center gap-3 bg-slate-900 rounded-[2rem] py-5 px-6">
+              <input
+                type="number"
+                value={surface}
+                onChange={(e) => setSurface(Math.max(1, Math.min(500, Number(e.target.value))))}
+                className="bg-transparent text-5xl font-black text-white text-center w-28 outline-none"
+              />
+              <span className="text-xl font-black text-gold">m²</span>
+            </div>
+            <button
+              onClick={() => setSurface(Math.min(500, surface + 1))}
+              className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 transition-all shrink-0"
+            >
+              <Plus size={24} />
+            </button>
+          </div>
+        </div>
+
               </div>
             )}
 
