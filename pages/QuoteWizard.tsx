@@ -29,6 +29,16 @@ interface SystemStep {
   unit?: string;
 }
 
+interface Product {
+  id: string;
+  name: string;
+  unit: string;
+  coverage: number;
+  price: number;
+  default?: boolean;
+  tier?: string;
+}
+
 interface ReferenceData {
   project_types: Array<{ value: string; label: string }>;
   zones: Array<{ value: string; label: string }>;
@@ -46,6 +56,15 @@ interface ReferenceData {
   defaults: {
     vat_rate: number;
     labor_per_m2: number;
+  };
+  products: {
+    impression: Product[];
+    enduit: Product[];
+    finition: {
+      mat: Product[];
+      satine: Product[];
+      brillant: Product[];
+    };
   };
 }
 
@@ -108,6 +127,10 @@ const QuoteWizard: React.FC = () => {
   const [exterieurType, setExterieurType] = useState<ExterieurType>('neuf');
   const [exterieurFinition, setExterieurFinition] = useState<ExterieurFinition>('simple');
   const [ancienEnduit, setAncienEnduit] = useState<AncienEnduit>('avec_enduit');
+  // Selected products
+  const [selectedImpression, setSelectedImpression] = useState('pva_primer');
+  const [selectedEnduit, setSelectedEnduit] = useState('jeton_prefix_putty');
+  const [selectedFinition, setSelectedFinition] = useState('');
 
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
@@ -129,6 +152,15 @@ const QuoteWizard: React.FC = () => {
     }
     loadReferences();
   }, []);
+
+useEffect(() => {
+  if (!references) return;
+  const aspectProducts = references.products.finition[peintureAspect] || [];
+  const defaultProduct = aspectProducts.find(p => p.default) || aspectProducts[0];
+  if (defaultProduct) {
+    setSelectedFinition(defaultProduct.id);
+  }
+}, [references, peintureAspect]);
 
   const currentSystem = useMemo((): SystemStep[] => {
     if (!references) return [];
@@ -344,6 +376,9 @@ const QuoteWizard: React.FC = () => {
         exterieur_type: exterieurType,
         exterieur_finition: exterieurFinition,
         ancien_enduit: ancienEnduit,
+        selected_impression: selectedImpression,
+        selected_enduit: selectedEnduit,
+        selected_finition: selectedFinition,
         client_name: clientName,
         client_address: clientAddress,
         client_phone: clientPhone,
@@ -930,8 +965,8 @@ const QuoteWizard: React.FC = () => {
                     <Layers size={32} />
                   </div>
                   <div>
-                    <h2 className="text-3xl font-black text-slate-900">Système Appliqué</h2>
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Étapes de travail</p>
+                    <h2 className="text-3xl font-black text-slate-900">Système & Produits</h2>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Étapes de travail & sélection des produits</p>
                   </div>
                 </div>
 
@@ -959,6 +994,113 @@ const QuoteWizard: React.FC = () => {
                     </div>
                   ))}
                 </div>
+
+                {/* ── Product Selection (intérieur only) ── */}
+                {zone === 'interieur' && (
+                  <div className="space-y-8 pt-4">
+                    <h3 className="text-[10px] font-black text-gold uppercase tracking-[0.2em]">Sélection des Produits</h3>
+
+                    {/* 1) Couche d'impression */}
+                    <div className="space-y-3">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">
+                        Couche d'impression
+                      </label>
+                      <div className="grid grid-cols-1 gap-3">
+                        {references.products.impression.map((product) => (
+                          <div
+                            key={product.id}
+                            className={`flex items-center gap-4 p-4 rounded-2xl border-2 transition-all ${
+                              selectedImpression === product.id
+                                ? 'border-gold bg-gold/5'
+                                : 'border-slate-100 bg-slate-50'
+                            }`}
+                          >
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                              selectedImpression === product.id ? 'bg-gold text-white' : 'bg-white border border-slate-200 text-slate-400'
+                            }`}>
+                              <Check size={18} />
+                            </div>
+                            <div className="flex-1">
+                              <p className="text-sm font-black text-slate-900">{product.name}</p>
+                              <p className="text-[9px] text-slate-400 font-bold">{product.price} DH/{product.unit}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* 2) Enduits — only if system has enduit steps */}
+                    {currentSystem.some(s => s.id === 'enduit') && (
+                      <div className="space-y-3">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">
+                          Enduits
+                        </label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {references.products.enduit.map((product) => (
+                            <button
+                              key={product.id}
+                              onClick={() => setSelectedEnduit(product.id)}
+                              className={`flex items-center gap-4 p-4 rounded-2xl border-2 transition-all text-left ${
+                                selectedEnduit === product.id
+                                  ? 'border-gold bg-gold/5'
+                                  : 'border-slate-100 bg-slate-50 hover:border-gold/30'
+                              }`}
+                            >
+                              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                                selectedEnduit === product.id ? 'bg-gold text-white' : 'bg-white border border-slate-200 text-slate-300'
+                              }`}>
+                                {selectedEnduit === product.id ? <Check size={18} /> : <CircleDot size={18} />}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-black text-slate-900 truncate">{product.name}</p>
+                                <p className="text-[9px] text-slate-400 font-bold">{product.price} DH/{product.unit}</p>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 3) Finitions — only for simple peinture, not decorative */}
+                    {(element === 'mur' && finitionType === 'simple' || element === 'plafond') && (
+                      <div className="space-y-3">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">
+                          Finition — {peintureAspect === 'mat' ? 'Mat' : peintureAspect === 'satine' ? 'Satinée' : 'Brillant'}
+                        </label>
+                        <div className="grid grid-cols-1 gap-3">
+                          {(references.products.finition[element === 'mur' ? peintureAspect : 'mat'] || []).map((product) => (
+                            <button
+                              key={product.id}
+                              onClick={() => setSelectedFinition(product.id)}
+                              className={`flex items-center gap-4 p-4 rounded-2xl border-2 transition-all text-left ${
+                                selectedFinition === product.id
+                                  ? 'border-gold bg-gold/5'
+                                  : 'border-slate-100 bg-slate-50 hover:border-gold/30'
+                              }`}
+                            >
+                              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                                selectedFinition === product.id ? 'bg-gold text-white' : 'bg-white border border-slate-200 text-slate-300'
+                              }`}>
+                                {selectedFinition === product.id ? <Check size={18} /> : <CircleDot size={18} />}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-black text-slate-900">{product.name}</p>
+                                <div className="flex items-center gap-3 mt-0.5">
+                                  {product.tier && (
+                                    <span className="text-[8px] font-black text-gold bg-gold/10 px-2 py-0.5 rounded-full uppercase">
+                                      {product.tier}
+                                    </span>
+                                  )}
+                                  <span className="text-[9px] text-slate-400 font-bold">{product.price} DH/{product.unit}</span>
+                                </div>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 

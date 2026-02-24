@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
+const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
 export interface Point {
   x: number;
@@ -34,7 +34,7 @@ async predictFloor(file: File): Promise<PredictionResponse> {
 
   const token = localStorage.getItem('access_token'); // ✅ attach JWT
 
-  const res = await fetch(`${API_BASE}/api/predictor/predict/`, {
+  const res = await fetch(`${API_BASE}/predictor/predict/`, {
     method: 'POST',
     headers: token ? { Authorization: `Bearer ${token}` } : {},
     body: form,
@@ -59,7 +59,7 @@ async predictFloor(file: File): Promise<PredictionResponse> {
     referenceLengthCm: number;
   }): Promise<AreaResponse> {
     const token = localStorage.getItem('access_token')
-    const res = await fetch(`${API_BASE}/api/area/`, {
+    const res = await fetch(`${API_BASE}/area/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
