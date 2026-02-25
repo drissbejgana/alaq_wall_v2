@@ -1125,7 +1125,7 @@ useEffect(() => {
                               </div>
                               <div className="flex-1">
                                 <p className="text-sm font-black text-slate-900">{product.name}</p>
-                                <p className="text-[9px] text-slate-400 font-bold">{product.price} DH/{product.unit}</p>
+                                {/* <p className="text-[9px] text-slate-400 font-bold">{product.price} DH/{product.unit}</p> */}
                               </div>
                             </button>
 
