@@ -18,7 +18,6 @@ import {
   Eye,
   EyeOff,
   FlipHorizontal,
-  ChevronUp,
   ImageIcon,
 } from 'lucide-react';
 import { aiService, Prediction, PredictionResponse } from '../services/ai';
@@ -40,7 +39,9 @@ const SWATCHES = [
   { name: 'Anthracite',      hex: '#374151' },
 ];
 
-interface ZoneStyle { color: string; opacity: number }
+// ZoneStyle no longer has opacity — the color blend is always applied at full strength
+// so the result looks like real paint, not a translucent filter.
+interface ZoneStyle { color: string }
 
 interface Zone {
   type: 'ai' | 'manual';
@@ -65,14 +66,73 @@ function dist(a: { x: number; y: number }, b: { x: number; y: number }) {
   return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
 }
 
-function hexToRgba(hex: string, alpha: number): string {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return `rgba(${r},${g},${b},${alpha})`;
+function applyRealisticPaint(
+  ctx: CanvasRenderingContext2D,
+  sourceImg: HTMLImageElement | HTMLCanvasElement,
+  pts: { x: number; y: number }[],
+  hex: string,
+  W: number,
+  H: number,
+) {
+  // ── Parse target colour → HSL lightness ──────────────────────────────────
+  const rN = parseInt(hex.slice(1, 3), 16) / 255;
+  const gN = parseInt(hex.slice(3, 5), 16) / 255;
+  const bN = parseInt(hex.slice(5, 7), 16) / 255;
+  const cMax = Math.max(rN, gN, bN);
+  const cMin = Math.min(rN, gN, bN);
+  const targetLightness = (cMax + cMin) / 2; // 0 = black, 1 = white
+
+  // ── Build the 'color'-blended layer ──────────────────────────────────────
+  const colorLayer = document.createElement('canvas');
+  colorLayer.width = W; colorLayer.height = H;
+  const cCtx = colorLayer.getContext('2d')!;
+  cCtx.drawImage(sourceImg, 0, 0, W, H);
+  cCtx.globalCompositeOperation = 'color';
+  cCtx.fillStyle = hex;
+  cCtx.fillRect(0, 0, W, H);
+
+  // ── Clip all subsequent drawing to the zone polygon ───────────────────────
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+  pts.slice(1).forEach(p => ctx.lineTo(p.x, p.y));
+  ctx.closePath();
+  ctx.clip();
+
+  // Pass 1 — color blend (hue+sat replacement)
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.drawImage(colorLayer, 0, 0);
+
+  // Pass 2 — luminosity nudge ───────────────────────────────────────────────
+  if (targetLightness > 0.55) {
+    // Light colour: screen blend brightens shadows/mid-tones toward the target
+    // Strength grows from 0 at L=0.55  →  ~0.72 at L=1.0 (full white)
+    const screenStrength = Math.pow((targetLightness - 0.55) / 0.45, 0.7) * 0.72;
+    ctx.globalCompositeOperation = 'screen';
+    ctx.globalAlpha = screenStrength;
+    ctx.fillStyle = hex;
+    ctx.fill();
+  } else if (targetLightness < 0.40) {
+    // Dark colour: multiply deepens the highlights toward the target
+    // Strength grows from 0 at L=0.40  →  ~0.55 at L=0.0 (full black)
+    const multiplyStrength = Math.pow((0.40 - targetLightness) / 0.40, 0.8) * 0.55;
+    ctx.globalCompositeOperation = 'multiply';
+    ctx.globalAlpha = multiplyStrength;
+    ctx.fillStyle = hex;
+    ctx.fill();
+  }
+
+  // Pass 3 — subtle body (all colours, very low alpha)
+  // Gives paint its slight opacity so it doesn't look like a translucent tint
+  ctx.globalCompositeOperation = 'multiply';
+  ctx.globalAlpha = 0.10;
+  ctx.fillStyle = hex;
+  ctx.fill();
+
+  ctx.restore();
 }
 
-// ─── Camera Modal ──────────────────────────────────────────────────────────────
 
 interface CameraModalProps { onCapture: (file: File) => void; onClose: () => void }
 
@@ -199,7 +259,6 @@ function CameraModal({ onCapture, onClose }: CameraModalProps) {
   );
 }
 
-// ─── Canvas Overlay ────────────────────────────────────────────────────────────
 
 interface UnifiedOverlayProps {
   imageSrc: string; imageWidth: number; imageHeight: number;
@@ -225,12 +284,13 @@ function UnifiedOverlay({ imageSrc, imageWidth, imageHeight, zones, zoneStyles, 
     const scaleX = W / imageWidth, scaleY = H / imageHeight;
 
     zones.forEach((zone, i) => {
-      const style = zoneStyles[i] ?? { color: SWATCHES[i % SWATCHES.length].hex, opacity: 1.0 };
+      const style = zoneStyles[i] ?? { color: SWATCHES[i % SWATCHES.length].hex };
       const isSelected = i === selectedIndex;
       let pts: { x: number; y: number }[] = [], isClosed = true;
 
       if (zone.type === 'ai' && zone.aiPrediction) { pts = zone.aiPrediction.points.map(p => ({ x: p.x * scaleX, y: p.y * scaleY })); isClosed = true; }
       else if (zone.type === 'manual' && zone.points) { pts = zone.points; isClosed = zone.closed ?? false; }
+
       // Render first point immediately when zone has exactly 1 point (just clicked)
       if (pts.length === 1 && !previewMode && zone.type === 'manual' && !isClosed) {
         const p = pts[0];
@@ -247,29 +307,15 @@ function UnifiedOverlay({ imageSrc, imageWidth, imageHeight, zones, zoneStyles, 
       if (pts.length < 2) return;
 
       if (isClosed && pts.length >= 3) {
-        // ── Realistic recolor: preserve luminosity (shadows, texture, perspective) ──
-        // Step 1: build a colorised version of the full image on an offscreen canvas
-        //         using the CSS 'color' blend mode (keeps L, replaces H+S — like Photoshop)
-        const tmp = document.createElement('canvas');
-        tmp.width = W; tmp.height = H;
-        const tCtx = tmp.getContext('2d')!;
-        tCtx.drawImage(img, 0, 0, W, H);
-        tCtx.globalCompositeOperation = 'color';
-        tCtx.fillStyle = style.color;
-        tCtx.fillRect(0, 0, W, H);
-
-        // Step 2: clip to the zone polygon and composite the colorised image
-        //         at the user-chosen opacity — shadows & highlights come through naturally
-        ctx.save();
-        ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y); pts.slice(1).forEach(p => ctx.lineTo(p.x, p.y)); ctx.closePath(); ctx.clip();
-        ctx.globalAlpha = style.opacity;
-        ctx.drawImage(tmp, 0, 0);
-        ctx.globalAlpha = 1;
-        ctx.restore();
+        // ── Realistic paint rendering ──────────────────────────────────────────
+        // applyRealisticPaint composites two blend passes (color + subtle multiply)
+        // at full alpha so the result looks like a physical paint coat — shadows,
+        // texture and perspective gradients all come through naturally.
+        applyRealisticPaint(ctx, img, pts, style.color, W, H);
       }
-      // Decorations (border + label + draw handles) only for the selected zone
+
+      // Decorations (border + label + draw handles) only when relevant
       if (!previewMode && isSelected) {
-        // Border stroke — only after user has explicitly clicked the zone
         if (i === labelIndex) {
           ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y); pts.slice(1).forEach(p => ctx.lineTo(p.x, p.y));
           if (isClosed) ctx.closePath();
@@ -278,13 +324,12 @@ function UnifiedOverlay({ imageSrc, imageWidth, imageHeight, zones, zoneStyles, 
           if (!isClosed) ctx.setLineDash([8, 4]); ctx.stroke(); ctx.setLineDash([]);
         }
 
-        // Ghost line to cursor while drawing
         if (zone.type === 'manual' && !isClosed && isDrawing && cursorPos && pts.length > 0) {
           const last = pts[pts.length - 1];
           ctx.beginPath(); ctx.moveTo(last.x, last.y); ctx.lineTo(cursorPos.x, cursorPos.y);
           ctx.strokeStyle = 'rgba(212,175,55,0.6)'; ctx.lineWidth = 2; ctx.setLineDash([6, 3]); ctx.stroke(); ctx.setLineDash([]);
         }
-        // Vertex dots for open manual zones
+
         if (zone.type === 'manual' && !isClosed) {
           pts.forEach((p, pi) => {
             const isFirst = pi === 0, canSnap = isFirst && cursorPos && pts.length >= 3, snapNow = canSnap && dist(cursorPos!, p) < 20;
@@ -294,7 +339,7 @@ function UnifiedOverlay({ imageSrc, imageWidth, imageHeight, zones, zoneStyles, 
             if (snapNow) { ctx.beginPath(); ctx.arc(p.x, p.y, 14, 0, Math.PI * 2); ctx.strokeStyle = 'rgba(212,175,55,0.8)'; ctx.lineWidth = 2.5; ctx.stroke(); }
           });
         }
-        // Label pill — only shown after the user has explicitly clicked this zone
+
         if (isClosed && pts.length >= 3 && i === labelIndex) {
           const cx = pts.reduce((s, p) => s + p.x, 0) / pts.length, cy = pts.reduce((s, p) => s + p.y, 0) / pts.length;
           ctx.font = 'bold 12px sans-serif';
@@ -369,7 +414,6 @@ function UnifiedOverlay({ imageSrc, imageWidth, imageHeight, zones, zoneStyles, 
   );
 }
 
-// ─── Step Badge ────────────────────────────────────────────────────────────────
 
 function StepBadge({ n, active, done }: { n: number; active: boolean; done: boolean }) {
   return (
@@ -379,11 +423,9 @@ function StepBadge({ n, active, done }: { n: number; active: boolean; done: bool
   );
 }
 
-// ─── Mobile Tab IDs ────────────────────────────────────────────────────────────
 
 type MobileTab = 'photo' | 'zones' | 'color';
 
-// ─── Main Simulator ────────────────────────────────────────────────────────────
 
 const Simulator: React.FC = () => {
   const [imageSrc, setImageSrc] = useState<string | null>(null);
@@ -398,6 +440,7 @@ const Simulator: React.FC = () => {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [labelIndex, setLabelIndex] = useState<number | null>(null);
   const [pickerHex, setPickerHex] = useState('#C19A6B');
+  const [applyToAll, setApplyToAll] = useState(true);
   const [isDrawing, setIsDrawing] = useState(false);
   const [cursorPos, setCursorPos] = useState<{ x: number; y: number } | null>(null);
   const [imageDims, setImageDims] = useState({ w: 800, h: 600 });
@@ -416,21 +459,21 @@ const Simulator: React.FC = () => {
 
   const selectZone = useCallback((i: number) => {
     setSelectedIndex(i); setPickerHex(zoneStyles[i]?.color ?? '#C19A6B');
-    setLabelIndex(i);
+    setLabelIndex(i); setApplyToAll(false);
     const z = zones[i]; setIsDrawing(z?.type === 'manual' && !z.closed);
   }, [zones, zoneStyles]);
 
   const applyColor = useCallback((hex: string) => {
     setPickerHex(hex);
-    setZoneStyles(prev => { const next = [...prev]; if (next[selectedIndex]) next[selectedIndex] = { ...next[selectedIndex], color: hex }; return next; });
-  }, [selectedIndex]);
-
-  const applyOpacity = useCallback((val: number) => {
-    setZoneStyles(prev => { const next = [...prev]; if (next[selectedIndex]) next[selectedIndex] = { ...next[selectedIndex], opacity: val }; return next; });
-  }, [selectedIndex]);
+    if (applyToAll) {
+      setZoneStyles(prev => prev.map(() => ({ color: hex })));
+    } else {
+      setZoneStyles(prev => { const next = [...prev]; if (next[selectedIndex]) next[selectedIndex] = { color: hex }; return next; });
+    }
+  }, [selectedIndex, applyToAll]);
 
   const handleFileUpload = useCallback(async (file: File) => {
-    setError(null); setPredictionData(null); setZones([]); setZoneStyles([]); setSelectedIndex(0); setLabelIndex(null); setIsDrawing(false); setPreviewMode(false);
+    setError(null); setPredictionData(null); setZones([]); setZoneStyles([]); setSelectedIndex(0); setLabelIndex(null); setIsDrawing(false); setPreviewMode(false); setApplyToAll(true);
     const url = URL.createObjectURL(file); setImageSrc(url);
     const img = new Image(); img.onload = () => setImageDims({ w: img.naturalWidth, h: img.naturalHeight }); img.src = url;
     setIsLoading(true); setMobileTab('zones');
@@ -438,7 +481,7 @@ const Simulator: React.FC = () => {
       const data = await aiService.predictFloor(file);
       setPredictionData(data); setImageDims({ w: data.image_width, h: data.image_height });
       const newZones: Zone[] = data.predictions.map((pred, i) => ({ type: 'ai', label: `Zone IA ${i + 1} — ${pred.class}`, aiPrediction: pred }));
-      const newStyles: ZoneStyle[] = data.predictions.map((_, i) => ({ color: SWATCHES[i % SWATCHES.length].hex, opacity: 1.0 }));
+      const newStyles: ZoneStyle[] = data.predictions.map(() => ({ color: SWATCHES[0].hex }));
       setZones(newZones); setZoneStyles(newStyles); setPickerHex(newStyles[0]?.color ?? '#C19A6B');
       if (newZones.length > 0) setMobileTab('color');
     } catch (err: any) { setError(err.message ?? 'Une erreur est survenue.'); setMobileTab('photo'); }
@@ -452,7 +495,7 @@ const Simulator: React.FC = () => {
   const startNewManualZone = useCallback((firstPoint?: { x: number; y: number }) => {
     const idx = zones.length, swatchIdx = idx % SWATCHES.length;
     setZones(prev => [...prev, { type: 'manual', label: `Zone manuelle ${manualZones.length + 1}`, points: firstPoint ? [firstPoint] : [], closed: false }]);
-    setZoneStyles(prev => [...prev, { color: SWATCHES[swatchIdx].hex, opacity: 1.0 }]);
+    setZoneStyles(prev => [...prev, { color: SWATCHES[swatchIdx].hex }]);
     setSelectedIndex(idx); setPickerHex(SWATCHES[swatchIdx].hex); setIsDrawing(true);
   }, [zones.length, manualZones.length]);
 
@@ -506,7 +549,7 @@ const Simulator: React.FC = () => {
     window.addEventListener('keydown', handler); return () => window.removeEventListener('keydown', handler);
   }, [isDrawing, undoLastPoint, closeCurrentZone, zones, selectedIndex, deleteZone]);
 
-  const reset = () => { setImageSrc(null); setPredictionData(null); setZones([]); setZoneStyles([]); setIsDrawing(false); setError(null); setPreviewMode(false); setMobileTab('photo'); setSelectedIndex(0); setLabelIndex(null); };
+  const reset = () => { setImageSrc(null); setPredictionData(null); setZones([]); setZoneStyles([]); setIsDrawing(false); setError(null); setPreviewMode(false); setMobileTab('photo'); setSelectedIndex(0); setLabelIndex(null); setApplyToAll(true); };
 
   const downloadResult = () => {
     if (!imageSrc) return;
@@ -520,7 +563,7 @@ const Simulator: React.FC = () => {
 
       const scaleX = W / imageDims.w, scaleY = H / imageDims.h;
       zones.forEach((zone, i) => {
-        const style = zoneStyles[i] ?? { color: SWATCHES[i % SWATCHES.length].hex, opacity: 1.0 };
+        const style = zoneStyles[i] ?? { color: SWATCHES[i % SWATCHES.length].hex };
         let pts: { x: number; y: number }[] = [];
         if (zone.type === 'ai' && zone.aiPrediction) {
           pts = zone.aiPrediction.points.map(p => ({ x: p.x * scaleX, y: p.y * scaleY }));
@@ -528,22 +571,7 @@ const Simulator: React.FC = () => {
           pts = zone.points;
         }
         if (pts.length < 3) return;
-
-        // Same luminosity-preserving blend as the live preview
-        const tmp = document.createElement('canvas');
-        tmp.width = W; tmp.height = H;
-        const tCtx = tmp.getContext('2d')!;
-        tCtx.drawImage(img, 0, 0, W, H);
-        tCtx.globalCompositeOperation = 'color';
-        tCtx.fillStyle = style.color;
-        tCtx.fillRect(0, 0, W, H);
-
-        ctx.save();
-        ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y); pts.slice(1).forEach(p => ctx.lineTo(p.x, p.y)); ctx.closePath(); ctx.clip();
-        ctx.globalAlpha = style.opacity;
-        ctx.drawImage(tmp, 0, 0);
-        ctx.globalAlpha = 1;
-        ctx.restore();
+        applyRealisticPaint(ctx, img, pts, style.color, W, H);
       });
 
       const a = document.createElement('a'); a.href = offscreen.toDataURL('image/png'); a.download = 'mur-colorise.png'; a.click();
@@ -551,10 +579,9 @@ const Simulator: React.FC = () => {
     img.src = imageSrc;
   };
 
-  const activeStyle = zoneStyles[selectedIndex] ?? { color: '#C19A6B', opacity: 1.0 };
+  const activeStyle = zoneStyles[selectedIndex] ?? { color: '#C19A6B' };
   const step1Done = !!imageSrc, step2Done = hasAiRun, step3Active = hasAiRun && !isLoading;
 
-  // ── Mobile tab content renderers ───────────────────────────────────────────
 
   const renderMobilePhotoTab = () => (
     <div className="flex flex-col gap-3 px-4 pb-4">
@@ -596,7 +623,6 @@ const Simulator: React.FC = () => {
           <p className="text-xs font-bold text-slate-400">Analyse IA en cours…</p>
         </div>
       )}
-      {/* AI zones */}
       {!isLoading && aiZones.length > 0 && (
         <div>
           <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1">
@@ -616,7 +642,6 @@ const Simulator: React.FC = () => {
           </div>
         </div>
       )}
-      {/* Manual zones */}
       {step3Active && (
         <div>
           <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1">
@@ -663,40 +688,55 @@ const Simulator: React.FC = () => {
   const renderMobileColorTab = () => (
     <div className="flex flex-col gap-4 px-4 pb-4">
 
-          {/* Zone selector */}
-          {zones.filter(z => z.type === 'ai' || z.closed).length > 1 && (
-            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-              {zones.map((zone, i) => {
-                const isReady = zone.type === 'ai' || zone.closed; if (!isReady) return null;
-                return (
-                  <button key={i} onClick={() => selectZone(i)}
-                    className={`flex-shrink-0 flex items-center gap-2 px-3 py-2 rounded-2xl text-[10px] font-bold border transition-all ${selectedIndex === i ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-50 text-slate-500 border-slate-100'}`}>
-                    <span className="w-3 h-3 rounded-full border border-white shadow" style={{ backgroundColor: zoneStyles[i]?.color ?? '#ccc' }} />
-                    {zone.label}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-          {/* Swatches */}
-          <div className="flex gap-2.5 overflow-x-auto pb-1 scrollbar-hide">
-            {SWATCHES.map(s => (
-              <button key={s.hex} onClick={() => applyColor(s.hex)} title={s.name}
-                className={`flex-shrink-0 w-10 h-10 rounded-xl border-4 transition-all relative hover:scale-110 ${activeStyle.color === s.hex ? 'border-slate-900 scale-110 shadow-lg' : 'border-transparent'}`}
-                style={{ backgroundColor: s.hex }}>
-                {activeStyle.color === s.hex && <div className="absolute inset-0 flex items-center justify-center"><Check size={13} strokeWidth={3} className="text-white drop-shadow" /></div>}
+      {/* All / Single toggle */}
+      {zones.filter(z => z.type === 'ai' || z.closed).length > 1 && (
+        <div className="flex items-center bg-slate-100 rounded-2xl p-1 gap-1">
+          <button onClick={() => setApplyToAll(true)}
+            className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${applyToAll ? 'bg-slate-900 text-white shadow' : 'text-slate-400'}`}>
+            Toutes les zones
+          </button>
+          <button onClick={() => setApplyToAll(false)}
+            className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${!applyToAll ? 'bg-slate-900 text-white shadow' : 'text-slate-400'}`}>
+            Zone sélectionnée
+          </button>
+        </div>
+      )}
+
+      {/* Zone selector — only shown in single mode */}
+      {!applyToAll && zones.filter(z => z.type === 'ai' || z.closed).length > 1 && (
+        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+          {zones.map((zone, i) => {
+            const isReady = zone.type === 'ai' || zone.closed; if (!isReady) return null;
+            return (
+              <button key={i} onClick={() => selectZone(i)}
+                className={`flex-shrink-0 flex items-center gap-2 px-3 py-2 rounded-2xl text-[10px] font-bold border transition-all ${selectedIndex === i ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-50 text-slate-500 border-slate-100'}`}>
+                <span className="w-3 h-3 rounded-full border border-white shadow" style={{ backgroundColor: zoneStyles[i]?.color ?? '#ccc' }} />
+                {zone.label}
               </button>
-            ))}
-          </div>
-          {/* Custom hex + opacity row */}
-          <div className="flex items-center gap-3">
-            <input type="color" value={pickerHex} onChange={e => applyColor(e.target.value)} className="w-10 h-10 rounded-xl cursor-pointer border border-slate-200 p-0.5 flex-shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p className="text-[9px] font-bold text-slate-400 mb-1 uppercase tracking-widest">Opacité {Math.round(activeStyle.opacity * 100)}%</p>
-              <input type="range" min={0} max={1} step={0.01} value={activeStyle.opacity} onChange={e => applyOpacity(Number(e.target.value))} className="w-full accent-gold" />
-            </div>
-            <div className="w-10 h-10 rounded-xl border border-slate-100 flex-shrink-0" style={{ backgroundColor: hexToRgba(activeStyle.color, activeStyle.opacity) }} />
-          </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Swatches */}
+      <div className="flex gap-2.5 overflow-x-auto pb-1 scrollbar-hide">
+        {SWATCHES.map(s => (
+          <button key={s.hex} onClick={() => applyColor(s.hex)} title={s.name}
+            className={`flex-shrink-0 w-10 h-10 rounded-xl border-4 transition-all relative hover:scale-110 ${activeStyle.color === s.hex ? 'border-slate-900 scale-110 shadow-lg' : 'border-transparent'}`}
+            style={{ backgroundColor: s.hex }}>
+            {activeStyle.color === s.hex && <div className="absolute inset-0 flex items-center justify-center"><Check size={13} strokeWidth={3} className="text-white drop-shadow" /></div>}
+          </button>
+        ))}
+      </div>
+      {/* Custom hex */}
+      <div className="flex items-center gap-3">
+        <input type="color" value={pickerHex} onChange={e => applyColor(e.target.value)} className="w-10 h-10 rounded-xl cursor-pointer border border-slate-200 p-0.5 flex-shrink-0" />
+        <div className="flex-1 min-w-0">
+          <p className="text-[9px] font-bold text-slate-400 mb-1 uppercase tracking-widest">Couleur personnalisée</p>
+          <p className="text-xs font-mono text-slate-500">{pickerHex}</p>
+        </div>
+        <div className="w-10 h-10 rounded-xl border border-slate-100 flex-shrink-0 shadow-inner" style={{ backgroundColor: activeStyle.color }} />
+      </div>
       {/* Download */}
       {hasClosed && (
         <button onClick={downloadResult} className="w-full bg-gold text-white font-black py-3.5 rounded-2xl shadow-xl shadow-gold/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 uppercase text-xs tracking-widest">
@@ -707,15 +747,12 @@ const Simulator: React.FC = () => {
     </div>
   );
 
-  // ── Mobile layout ──────────────────────────────────────────────────────────
 
   const TABS: { id: MobileTab; label: string; icon: React.ReactNode; badge?: number }[] = [
     { id: 'photo', label: 'Photo', icon: <ImageIcon size={16} strokeWidth={2} /> },
     { id: 'zones', label: 'Zones', icon: <Layers size={16} strokeWidth={2} />, badge: zones.filter(z => z.type === 'ai' || z.closed).length || undefined },
     { id: 'color', label: 'Couleur', icon: <Palette size={16} strokeWidth={2} /> },
   ];
-
-  const SHEET_HEIGHTS = { collapsed: 'h-[42%]', expanded: 'h-[72%]' };
 
   return (
     <>
@@ -749,11 +786,8 @@ const Simulator: React.FC = () => {
           </div>
         </div>
 
-        {/* Canvas area — fills remaining space above bottom sheet */}
-        <div
-          className={`flex-1 relative overflow-hidden bg-slate-950 transition-all duration-300`}
-          style={{ minHeight: 0 }}
-        >
+        {/* Canvas area */}
+        <div className="flex-1 relative overflow-hidden bg-slate-950 transition-all duration-300" style={{ minHeight: 0 }}>
           {isLoading && (
             <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 bg-slate-950">
               <div className="relative">
@@ -791,7 +825,6 @@ const Simulator: React.FC = () => {
             />
           )}
 
-          {/* Drawing state overlay banner */}
           {isDrawing && (
             <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 pointer-events-none">
               <div className="flex items-center gap-2 bg-amber-500/95 text-white text-[10px] font-bold px-4 py-2 rounded-xl shadow-lg">
@@ -801,7 +834,6 @@ const Simulator: React.FC = () => {
             </div>
           )}
 
-          {/* Floating action buttons */}
           {hasAiRun && !isLoading && (
             <div className="absolute bottom-3 right-3 flex flex-col gap-2 z-30">
               {isDrawing && drawingPts >= 3 && (
@@ -820,8 +852,6 @@ const Simulator: React.FC = () => {
 
         {/* Bottom sheet */}
         <div className={`flex-shrink-0 bg-white rounded-t-[2rem] shadow-2xl transition-all duration-300 ${sheetExpanded ? 'max-h-[72%]' : 'max-h-[42%]'} flex flex-col overflow-hidden`}>
-
-          {/* Drag handle + tabs */}
           <div className="flex-shrink-0 pt-3 pb-0">
             <button onClick={() => setSheetExpanded(v => !v)} className="block mx-auto w-10 h-1 bg-slate-200 rounded-full mb-3 active:bg-slate-300 transition-colors" />
             <div className="flex border-b border-slate-100">
@@ -838,8 +868,6 @@ const Simulator: React.FC = () => {
               ))}
             </div>
           </div>
-
-          {/* Tab content (scrollable) */}
           <div className="flex-1 overflow-y-auto pt-3">
             {mobileTab === 'photo' && renderMobilePhotoTab()}
             {mobileTab === 'zones' && renderMobileZonesTab()}
@@ -848,12 +876,9 @@ const Simulator: React.FC = () => {
         </div>
       </div>
 
-      {/* ════════════════════════════════════════════════
-          DESKTOP LAYOUT  (hidden on mobile)
-          ════════════════════════════════════════════════ */}
+
       <div className="hidden lg:block space-y-10 animate-fade-in">
 
-        {/* Page header */}
         <div>
           <p className="text-[10px] font-black text-gold uppercase tracking-[0.3em] mb-2">Simulation Visuelle</p>
           <h2 className="text-5xl font-black text-slate-900 tracking-tight">Coloriseur de Mur AI</h2>
@@ -862,7 +887,7 @@ const Simulator: React.FC = () => {
 
         <div className="grid grid-cols-4 gap-8" style={{ height: 'calc(100vh - 240px)', minHeight: '600px' }}>
 
-          {/* ── Left sidebar (scrollable) ── */}
+          {/* ── Left sidebar ── */}
           <div className="col-span-1 overflow-y-auto pr-1 space-y-5 scrollbar-thin scrollbar-thumb-slate-200">
 
             {/* Step 1: Upload */}
@@ -988,7 +1013,23 @@ const Simulator: React.FC = () => {
                   <StepBadge n={4} active done={false} />
                   <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Couleur</span>
                 </div>
+
+                {/* All / Single toggle */}
                 {zones.filter(z => z.type === 'ai' || z.closed).length > 1 && (
+                  <div className="flex items-center bg-slate-100 rounded-2xl p-1 gap-1">
+                    <button onClick={() => setApplyToAll(true)}
+                      className={`flex-1 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${applyToAll ? 'bg-slate-900 text-white shadow' : 'text-slate-400 hover:text-slate-600'}`}>
+                      Toutes
+                    </button>
+                    <button onClick={() => setApplyToAll(false)}
+                      className={`flex-1 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${!applyToAll ? 'bg-slate-900 text-white shadow' : 'text-slate-400 hover:text-slate-600'}`}>
+                      Une zone
+                    </button>
+                  </div>
+                )}
+
+                {/* Zone list — only in single mode */}
+                {!applyToAll && zones.filter(z => z.type === 'ai' || z.closed).length > 1 && (
                   <div className="flex flex-col gap-1">
                     {zones.map((zone, i) => { const isReady = zone.type === 'ai' || zone.closed; if (!isReady) return null; return (
                       <button key={i} onClick={() => selectZone(i)}
@@ -1018,15 +1059,9 @@ const Simulator: React.FC = () => {
                       className="w-full border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-mono text-slate-700 focus:outline-none focus:border-gold" />
                   </div>
                 </div>
-                <div className="space-y-1.5">
-                  <div className="flex justify-between">
-                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Opacité</p>
-                    <p className="text-[9px] font-black text-slate-600">{Math.round(activeStyle.opacity * 100)}%</p>
-                  </div>
-                  <input type="range" min={0} max={1} step={0.01} value={activeStyle.opacity} onChange={e => applyOpacity(Number(e.target.value))} className="w-full accent-gold" />
-                  <div className="h-2 rounded-full border border-slate-100" style={{ background: `linear-gradient(to right, transparent, ${activeStyle.color})` }} />
-                </div>
-                <div className="h-8 rounded-xl border border-slate-100" style={{ backgroundColor: hexToRgba(activeStyle.color, activeStyle.opacity) }} />
+
+                {/* Live color preview swatch */}
+                <div className="h-10 rounded-xl border border-slate-100 shadow-inner" style={{ backgroundColor: activeStyle.color }} />
 
                 <button onClick={downloadResult} className="w-full bg-gold text-white font-black py-3.5 rounded-2xl shadow-xl shadow-gold/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2.5 uppercase text-xs tracking-widest">
                   <Download size={16} strokeWidth={3} />Télécharger
@@ -1095,7 +1130,6 @@ const Simulator: React.FC = () => {
                     onZoneClick={selectZone} onCanvasClick={handleCanvasClick}
                     onCanvasMouseMove={handleCanvasMouseMove} onEmptyClick={handleEmptyClick}
                   />
-                  {/* Floating tools */}
                   {hasAiRun && zones.length > 0 && (
                     <div className="absolute bottom-4 right-4 flex flex-col gap-2 z-30">
                       {isDrawing && drawingPts > 0 && (
