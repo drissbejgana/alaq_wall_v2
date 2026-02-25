@@ -137,6 +137,9 @@ const QuoteWizard: React.FC = () => {
   const [clientAddress, setClientAddress] = useState('');
   const [notes, setNotes] = useState('');
 
+  const [selectedDecoratif, setSelectedDecoratif] = useState('lady_design_purple');
+  const [selectedDecoratifSize, setSelectedDecoratifSize] = useState('');
+
   useEffect(() => {
     async function loadReferences() {
       try {
@@ -379,6 +382,8 @@ useEffect(() => {
         selected_impression: selectedImpression,
         selected_enduit: selectedEnduit,
         selected_finition: selectedFinition,
+        selected_decoratif: selectedDecoratif,
+        selected_decoratif_size: selectedDecoratifSize,
         client_name: clientName,
         client_address: clientAddress,
         client_phone: clientPhone,
@@ -1099,6 +1104,55 @@ useEffect(() => {
                         </div>
                       </div>
                     )}
+
+                    {element === 'mur' && finitionType === 'decorative' && decorativeOption === 'produit_decoratif' && (
+                      <div className="space-y-3">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block ml-2">
+                          Produit Décoratif
+                        </label>
+                        {(references.products.decoratif || []).map((product) => (
+                          <div key={product.id}>
+                            <button
+                              onClick={() => { setSelectedDecoratif(product.id); setSelectedDecoratifSize(''); }}
+                              className={`w-full flex items-center gap-4 p-4 rounded-2xl border-2 transition-all text-left ${
+                                selectedDecoratif === product.id ? 'border-gold bg-gold/5' : 'border-slate-100 bg-slate-50 hover:border-gold/30'
+                              }`}
+                            >
+                              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                                selectedDecoratif === product.id ? 'bg-gold text-white' : 'bg-white border border-slate-200 text-slate-300'
+                              }`}>
+                                {selectedDecoratif === product.id ? <Check size={18} /> : <CircleDot size={18} />}
+                              </div>
+                              <div className="flex-1">
+                                <p className="text-sm font-black text-slate-900">{product.name}</p>
+                                <p className="text-[9px] text-slate-400 font-bold">{product.price} DH/{product.unit}</p>
+                              </div>
+                            </button>
+
+                            {/* Size variants */}
+                            {selectedDecoratif === product.id && product.variants?.length > 0 && (
+                              <div className="flex gap-2 mt-2 ml-14">
+                                {product.variants.map((v) => (
+                                  <button
+                                    key={v.size}
+                                    onClick={() => setSelectedDecoratifSize(v.size)}
+                                    className={`px-4 py-2 rounded-xl border-2 text-xs font-black transition-all ${
+                                      selectedDecoratifSize === v.size
+                                        ? 'border-gold bg-gold text-white'
+                                        : 'border-slate-200 bg-white text-slate-600 hover:border-gold/50'
+                                    }`}
+                                  >
+                                    {v.size} — {v.price} DH
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+
                   </div>
                 )}
               </div>

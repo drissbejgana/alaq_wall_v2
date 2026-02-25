@@ -22,42 +22,58 @@ import {
 } from 'lucide-react';
 import { aiService, Prediction, PredictionResponse } from '../services/ai';
 
-// ─── Preset colour swatches ────────────────────────────────────────────────────
+// ─── Texture library ───────────────────────────────────────────────────────────
 
-const SWATCHES = [
-  { name: 'Chêne naturel',   hex: '#C19A6B' },
-  { name: 'Noyer foncé',     hex: '#5C3D2E' },
-  { name: 'Marbre blanc',    hex: '#F5F0E8' },
-  { name: 'Ardoise grise',   hex: '#6B7280' },
-  { name: 'Carrelage beige', hex: '#D4B896' },
-  { name: 'Pierre noire',    hex: '#1F2937' },
-  { name: 'Terre cuite',     hex: '#C2714F' },
-  { name: 'Vert sauge',      hex: '#84A59D' },
-  { name: 'Bleu nuit',       hex: '#1E3A5F' },
-  { name: 'Blanc pur',       hex: '#FAFAFA' },
-  { name: 'Or Premium',      hex: '#D4AF37' },
-  { name: 'Anthracite',      hex: '#374151' },
+interface TextureOption {
+  id: string;
+  name: string;
+  src: string;
+  category: string;
+}
+
+const TEXTURES: TextureOption[] = [
+  { id: 'pale_crimsor',         name: 'Pale Crimsor',     src: '/textures/c1.jpg',category: 'color' },
+  { id: 'deep_violet',        name: 'Deep Violet',        src: '/textures/c2.jpg',category: 'color' },
+  { id: 'navale',      name: 'Navale',       src: '/textures/c3.jpg',category: 'color' },
+  { id: 'blue_grey', name: 'blue grey',        src: '/textures/c4.jpg', category: 'color' },
+  { id: 'cadmium_yellow', name: 'Cadmium yellow',        src: '/textures/c5.jpg', category: 'color' },
+  { id: 'EvergreenBrume', name: 'Evergreen Brume',        src: '/textures/c6.jpg', category: 'color' },
+  { id: 'Rum_Raisin', name: 'Rum Raisin',        src: '/textures/c7.jpg', category: 'color' },
+  { id: 'tiles0',     name: 'Parquet chevron',    src: '/textures/t1.jpg', category: 'texture' },
+  { id: 'tiles1',       name: 'Carreaux méditerr.', src: '/textures/t2.jpg',   category: 'texture' },
+  { id: 'tiles2',       name: 'Carreaux méditerr.', src: '/textures/t3.jpg',   category: 'texture' },
+  { id: 'tiles3',       name: 'Carreaux méditerr.', src: '/textures/t16.jpg',   category: 'texture' },
+  { id: 'tiles4',       name: 'Carreaux méditerr.', src: '/textures/t5.jpg',   category: 'texture' },
+  { id: 'tiles5',       name: 'Carreaux méditerr.', src: '/textures/t6.jpg',   category: 'texture' },
+  { id: 'tiles6',       name: 'Carreaux méditerr.', src: '/textures/t7.jpg',   category: 'texture' },
+  { id: 'tiles7',       name: 'Carreaux méditerr.', src: '/textures/t8.jpg',   category: 'texture' },
+  { id: 'tiles8',       name: 'Carreaux méditerr.', src: '/textures/t9.jpg',   category: 'texture' },
+  { id: 'tiles10',       name: 'Carreaux méditerr.', src: '/textures/t11.jpg',   category: 'texture' },
+  { id: 'tiles11',       name: 'Carreaux méditerr.', src: '/textures/t12.jpg',   category: 'texture' },
+  { id: 'tiles12',       name: 'Carreaux méditerr.', src: '/textures/t13.jpg',   category: 'texture' },
+  { id: 'tiles13',       name: 'Carreaux méditerr.', src: '/textures/t15.jpg',   category: 'texture' },
 ];
 
-// ZoneStyle no longer has opacity — the color blend is always applied at full strength
-// so the result looks like real paint, not a translucent filter.
-interface ZoneStyle { color: string }
 
-interface Zone {
-  type: 'ai' | 'manual';
-  label: string;
-  aiPrediction?: Prediction;
-  points?: { x: number; y: number }[];
-  closed?: boolean;
+
+// ─── Zone style — color OR texture ───────────────────────────────────────────
+
+interface ZoneStyle {
+  mode: 'color' | 'texture';
+  color: string;
+  textureId?: string;
 }
+
+const DEFAULT_STYLE: ZoneStyle = { mode: 'color', color: '#C19A6B' };
+
+// ─── Geometry helpers ─────────────────────────────────────────────────────────
 
 function pointInPolygon(px: number, py: number, points: { x: number; y: number }[]): boolean {
   let inside = false;
   for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
     const xi = points[i].x, yi = points[i].y;
     const xj = points[j].x, yj = points[j].y;
-    const intersect = yi > py !== yj > py && px < ((xj - xi) * (py - yi)) / (yj - yi) + xi;
-    if (intersect) inside = !inside;
+    if ((yi > py) !== (yj > py) && px < ((xj - xi) * (py - yi)) / (yj - yi) + xi) inside = !inside;
   }
   return inside;
 }
@@ -66,32 +82,38 @@ function dist(a: { x: number; y: number }, b: { x: number; y: number }) {
   return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
 }
 
+// ─── Canvas rendering ─────────────────────────────────────────────────────────
+
 function applyRealisticPaint(
   ctx: CanvasRenderingContext2D,
   sourceImg: HTMLImageElement | HTMLCanvasElement,
   pts: { x: number; y: number }[],
   hex: string,
-  W: number,
-  H: number,
+  W: number, H: number,
 ) {
-  // ── Parse target colour → HSL lightness ──────────────────────────────────
-  const rN = parseInt(hex.slice(1, 3), 16) / 255;
-  const gN = parseInt(hex.slice(3, 5), 16) / 255;
-  const bN = parseInt(hex.slice(5, 7), 16) / 255;
-  const cMax = Math.max(rN, gN, bN);
-  const cMin = Math.min(rN, gN, bN);
-  const targetLightness = (cMax + cMin) / 2; // 0 = black, 1 = white
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+  pts.slice(1).forEach(p => ctx.lineTo(p.x, p.y));
+  ctx.closePath();
+  ctx.clip();
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = hex;
+  ctx.fill();
+  ctx.globalCompositeOperation = 'luminosity';
+  ctx.globalAlpha = 1;
+  ctx.drawImage(sourceImg, 0, 0, W, H);
+  ctx.restore();
+}
 
-  // ── Build the 'color'-blended layer ──────────────────────────────────────
-  const colorLayer = document.createElement('canvas');
-  colorLayer.width = W; colorLayer.height = H;
-  const cCtx = colorLayer.getContext('2d')!;
-  cCtx.drawImage(sourceImg, 0, 0, W, H);
-  cCtx.globalCompositeOperation = 'color';
-  cCtx.fillStyle = hex;
-  cCtx.fillRect(0, 0, W, H);
-
-  // ── Clip all subsequent drawing to the zone polygon ───────────────────────
+function applyTexturePaint(
+  ctx: CanvasRenderingContext2D,
+  sourceImg: HTMLImageElement | HTMLCanvasElement,
+  pts: { x: number; y: number }[],
+  textureImg: HTMLImageElement,
+  W: number, H: number,
+) {
   ctx.save();
   ctx.beginPath();
   ctx.moveTo(pts[0].x, pts[0].y);
@@ -99,40 +121,47 @@ function applyRealisticPaint(
   ctx.closePath();
   ctx.clip();
 
-  // Pass 1 — color blend (hue+sat replacement)
-  ctx.globalAlpha = 1;
-  ctx.globalCompositeOperation = 'source-over';
-  ctx.drawImage(colorLayer, 0, 0);
-
-  // Pass 2 — luminosity nudge ───────────────────────────────────────────────
-  if (targetLightness > 0.55) {
-    // Light colour: screen blend brightens shadows/mid-tones toward the target
-    // Strength grows from 0 at L=0.55  →  ~0.72 at L=1.0 (full white)
-    const screenStrength = Math.pow((targetLightness - 0.55) / 0.45, 0.7) * 0.72;
-    ctx.globalCompositeOperation = 'screen';
-    ctx.globalAlpha = screenStrength;
-    ctx.fillStyle = hex;
-    ctx.fill();
-  } else if (targetLightness < 0.40) {
-    // Dark colour: multiply deepens the highlights toward the target
-    // Strength grows from 0 at L=0.40  →  ~0.55 at L=0.0 (full black)
-    const multiplyStrength = Math.pow((0.40 - targetLightness) / 0.40, 0.8) * 0.55;
-    ctx.globalCompositeOperation = 'multiply';
-    ctx.globalAlpha = multiplyStrength;
-    ctx.fillStyle = hex;
+  const pattern = ctx.createPattern(textureImg, 'repeat');
+  if (pattern) {
+    const tileSize = Math.min(W, H) * 0.25;
+    const scale = tileSize / Math.max(textureImg.naturalWidth, 1);
+    const mat = new DOMMatrix();
+    mat.scaleSelf(scale, scale);
+    pattern.setTransform(mat);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = pattern;
     ctx.fill();
   }
 
-  // Pass 3 — subtle body (all colours, very low alpha)
-  // Gives paint its slight opacity so it doesn't look like a translucent tint
+  // Blend wall lighting back on top of texture
   ctx.globalCompositeOperation = 'multiply';
-  ctx.globalAlpha = 0.10;
-  ctx.fillStyle = hex;
-  ctx.fill();
+  ctx.globalAlpha = 0.55;
+  ctx.drawImage(sourceImg, 0, 0, W, H);
+
+  ctx.globalCompositeOperation = 'luminosity';
+  ctx.globalAlpha = 0.45;
+  ctx.drawImage(sourceImg, 0, 0, W, H);
 
   ctx.restore();
 }
 
+// ─── Tiny style preview badge ─────────────────────────────────────────────────
+
+function StyleSwatch({ style, size = 'md' }: { style: ZoneStyle; size?: 'sm' | 'md' }) {
+  const cls = size === 'sm' ? 'w-3 h-3 rounded-full' : 'w-4 h-4 rounded-md';
+  if (style.mode === 'texture' && style.textureId) {
+    const tex = TEXTURES.find(t => t.id === style.textureId);
+    if (tex) return (
+      <div className={`${cls} overflow-hidden border border-white/40 flex-shrink-0 shadow-sm`}>
+        <img src={tex.src} className="w-full h-full object-cover" alt="" />
+      </div>
+    );
+  }
+  return <div className={`${cls} flex-shrink-0 shadow-sm border border-black/10`} style={{ backgroundColor: style.color }} />;
+}
+
+// ─── Camera modal (unchanged) ─────────────────────────────────────────────────
 
 interface CameraModalProps { onCapture: (file: File) => void; onClose: () => void }
 
@@ -150,9 +179,7 @@ function CameraModal({ onCapture, onClose }: CameraModalProps) {
     if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null; }
     setIsReady(false); setError(null);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: facing, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false,
-      });
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
       streamRef.current = stream;
       if (videoRef.current) { videoRef.current.srcObject = stream; videoRef.current.onloadedmetadata = () => setIsReady(true); }
     } catch (err: any) {
@@ -207,26 +234,20 @@ function CameraModal({ onCapture, onClose }: CameraModalProps) {
           <button onClick={() => { streamRef.current?.getTracks().forEach(t => t.stop()); onClose(); }} className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-400 hover:text-white transition-all"><X size={16} strokeWidth={2.5} /></button>
         </div>
         <div className="relative aspect-video bg-black overflow-hidden">
-          <video ref={videoRef} autoPlay playsInline muted className={`w-full h-full object-cover transition-opacity ${capturedImage ? 'opacity-0' : 'opacity-100'} ${facingMode === 'user' ? 'scale-x-[-1]' : ''}`} />
+          <video ref={videoRef} autoPlay playsInline muted className={`w-full h-full object-cover ${capturedImage ? 'opacity-0' : 'opacity-100'} ${facingMode === 'user' ? 'scale-x-[-1]' : ''}`} />
           {capturedImage && <img src={capturedImage} alt="Capture" className="absolute inset-0 w-full h-full object-cover" />}
           <canvas ref={canvasRef} className="hidden" />
           <div className={`absolute inset-0 bg-white pointer-events-none transition-opacity duration-150 ${flashActive ? 'opacity-80' : 'opacity-0'}`} />
           {!isReady && !error && !capturedImage && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
               <div className="w-12 h-12 border-4 border-gold/20 border-t-gold rounded-full animate-spin" />
-              <p className="text-xs font-bold text-slate-400">Initialisation de la caméra…</p>
+              <p className="text-xs font-bold text-slate-400">Initialisation…</p>
             </div>
           )}
           {error && <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 px-8 text-center"><AlertCircle size={40} className="text-rose-400" strokeWidth={1.5} /><p className="text-sm font-bold text-rose-300">{error}</p></div>}
           {isReady && !capturedImage && (
             <>
               <div className="absolute inset-0 pointer-events-none">
-                <svg className="w-full h-full opacity-10" viewBox="0 0 3 2" preserveAspectRatio="none">
-                  <line x1="1" y1="0" x2="1" y2="2" stroke="white" strokeWidth="0.02" />
-                  <line x1="2" y1="0" x2="2" y2="2" stroke="white" strokeWidth="0.02" />
-                  <line x1="0" y1="0.667" x2="3" y2="0.667" stroke="white" strokeWidth="0.02" />
-                  <line x1="0" y1="1.333" x2="3" y2="1.333" stroke="white" strokeWidth="0.02" />
-                </svg>
                 <div className="absolute inset-6">
                   {[['top-0 left-0','border-t-2 border-l-2'],['top-0 right-0','border-t-2 border-r-2'],['bottom-0 left-0','border-b-2 border-l-2'],['bottom-0 right-0','border-b-2 border-r-2']].map(([pos,borders],i) => (
                     <div key={i} className={`absolute ${pos} w-8 h-8 ${borders} border-gold/60 rounded-sm`} />
@@ -259,6 +280,17 @@ function CameraModal({ onCapture, onClose }: CameraModalProps) {
   );
 }
 
+// ─── Zone type ────────────────────────────────────────────────────────────────
+
+interface Zone {
+  type: 'ai' | 'manual';
+  label: string;
+  aiPrediction?: Prediction;
+  points?: { x: number; y: number }[];
+  closed?: boolean;
+}
+
+// ─── Unified overlay ──────────────────────────────────────────────────────────
 
 interface UnifiedOverlayProps {
   imageSrc: string; imageWidth: number; imageHeight: number;
@@ -267,9 +299,14 @@ interface UnifiedOverlayProps {
   onZoneClick: (i: number) => void; onCanvasClick: (x: number, y: number) => void;
   onCanvasMouseMove: (x: number, y: number) => void; onEmptyClick: (x: number, y: number) => void;
   fillContainer?: boolean;
+  textureCache: Map<string, HTMLImageElement>;
 }
 
-function UnifiedOverlay({ imageSrc, imageWidth, imageHeight, zones, zoneStyles, selectedIndex, labelIndex, previewMode, isDrawing, cursorPos, onZoneClick, onCanvasClick, onCanvasMouseMove, onEmptyClick, fillContainer }: UnifiedOverlayProps) {
+function UnifiedOverlay({
+  imageSrc, imageWidth, imageHeight, zones, zoneStyles, selectedIndex, labelIndex,
+  previewMode, isDrawing, cursorPos, onZoneClick, onCanvasClick,
+  onCanvasMouseMove, onEmptyClick, fillContainer, textureCache,
+}: UnifiedOverlayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   const [canvasDims, setCanvasDims] = useState({ w: imageWidth || 800, h: imageHeight || 600 });
@@ -284,14 +321,13 @@ function UnifiedOverlay({ imageSrc, imageWidth, imageHeight, zones, zoneStyles, 
     const scaleX = W / imageWidth, scaleY = H / imageHeight;
 
     zones.forEach((zone, i) => {
-      const style = zoneStyles[i] ?? { color: SWATCHES[i % SWATCHES.length].hex };
+      const style = zoneStyles[i] ?? DEFAULT_STYLE;
       const isSelected = i === selectedIndex;
       let pts: { x: number; y: number }[] = [], isClosed = true;
 
       if (zone.type === 'ai' && zone.aiPrediction) { pts = zone.aiPrediction.points.map(p => ({ x: p.x * scaleX, y: p.y * scaleY })); isClosed = true; }
       else if (zone.type === 'manual' && zone.points) { pts = zone.points; isClosed = zone.closed ?? false; }
 
-      // Render first point immediately when zone has exactly 1 point (just clicked)
       if (pts.length === 1 && !previewMode && zone.type === 'manual' && !isClosed) {
         const p = pts[0];
         if (isSelected && isDrawing && cursorPos) {
@@ -303,33 +339,30 @@ function UnifiedOverlay({ imageSrc, imageWidth, imageHeight, zones, zoneStyles, 
         ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 1.5; ctx.stroke();
         return;
       }
-
       if (pts.length < 2) return;
 
       if (isClosed && pts.length >= 3) {
-        // ── Realistic paint rendering ──────────────────────────────────────────
-        // applyRealisticPaint composites two blend passes (color + subtle multiply)
-        // at full alpha so the result looks like a physical paint coat — shadows,
-        // texture and perspective gradients all come through naturally.
-        applyRealisticPaint(ctx, img, pts, style.color, W, H);
+        if (style.mode === 'texture' && style.textureId) {
+          const texImg = textureCache.get(style.textureId);
+          if (texImg && texImg.complete) applyTexturePaint(ctx, img, pts, texImg, W, H);
+          else applyRealisticPaint(ctx, img, pts, style.color, W, H);
+        } else {
+          applyRealisticPaint(ctx, img, pts, style.color, W, H);
+        }
       }
 
-      // Decorations (border + label + draw handles) only when relevant
       if (!previewMode && isSelected) {
         if (i === labelIndex) {
           ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y); pts.slice(1).forEach(p => ctx.lineTo(p.x, p.y));
           if (isClosed) ctx.closePath();
-          ctx.strokeStyle = 'rgba(255,255,255,0.55)';
-          ctx.lineWidth = 1.5;
+          ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 1.5;
           if (!isClosed) ctx.setLineDash([8, 4]); ctx.stroke(); ctx.setLineDash([]);
         }
-
         if (zone.type === 'manual' && !isClosed && isDrawing && cursorPos && pts.length > 0) {
           const last = pts[pts.length - 1];
           ctx.beginPath(); ctx.moveTo(last.x, last.y); ctx.lineTo(cursorPos.x, cursorPos.y);
           ctx.strokeStyle = 'rgba(212,175,55,0.6)'; ctx.lineWidth = 2; ctx.setLineDash([6, 3]); ctx.stroke(); ctx.setLineDash([]);
         }
-
         if (zone.type === 'manual' && !isClosed) {
           pts.forEach((p, pi) => {
             const isFirst = pi === 0, canSnap = isFirst && cursorPos && pts.length >= 3, snapNow = canSnap && dist(cursorPos!, p) < 20;
@@ -339,7 +372,6 @@ function UnifiedOverlay({ imageSrc, imageWidth, imageHeight, zones, zoneStyles, 
             if (snapNow) { ctx.beginPath(); ctx.arc(p.x, p.y, 14, 0, Math.PI * 2); ctx.strokeStyle = 'rgba(212,175,55,0.8)'; ctx.lineWidth = 2.5; ctx.stroke(); }
           });
         }
-
         if (isClosed && pts.length >= 3 && i === labelIndex) {
           const cx = pts.reduce((s, p) => s + p.x, 0) / pts.length, cy = pts.reduce((s, p) => s + p.y, 0) / pts.length;
           ctx.font = 'bold 12px sans-serif';
@@ -351,7 +383,7 @@ function UnifiedOverlay({ imageSrc, imageWidth, imageHeight, zones, zoneStyles, 
         }
       }
     });
-  }, [zones, zoneStyles, selectedIndex, labelIndex, previewMode, isDrawing, cursorPos, imageWidth, imageHeight]);
+  }, [zones, zoneStyles, selectedIndex, labelIndex, previewMode, isDrawing, cursorPos, imageWidth, imageHeight, textureCache]);
 
   useEffect(() => { draw(); }, [draw]);
 
@@ -401,19 +433,15 @@ function UnifiedOverlay({ imageSrc, imageWidth, imageHeight, zones, zoneStyles, 
   return (
     <div className="relative w-full h-full flex items-center justify-center">
       <img ref={imgRef} src={imageSrc} className="hidden" onLoad={draw} alt="" />
-      <canvas
-        ref={canvasRef}
-        width={canvasDims.w} height={canvasDims.h}
-        onClick={handleClick}
-        onTouchEnd={handleTouchEnd}
-        onMouseMove={handleMouseMove}
+      <canvas ref={canvasRef} width={canvasDims.w} height={canvasDims.h}
+        onClick={handleClick} onTouchEnd={handleTouchEnd} onMouseMove={handleMouseMove}
         className={`object-contain cursor-crosshair ${fillContainer ? 'w-full h-full' : 'max-w-full max-h-full rounded-2xl shadow-2xl'}`}
-        style={{ display: 'block', touchAction: 'none' }}
-      />
+        style={{ display: 'block', touchAction: 'none' }} />
     </div>
   );
 }
 
+// ─── Step badge ───────────────────────────────────────────────────────────────
 
 function StepBadge({ n, active, done }: { n: number; active: boolean; done: boolean }) {
   return (
@@ -423,9 +451,9 @@ function StepBadge({ n, active, done }: { n: number; active: boolean; done: bool
   );
 }
 
-
 type MobileTab = 'photo' | 'zones' | 'color';
 
+// ─── Simulator ────────────────────────────────────────────────────────────────
 
 const Simulator: React.FC = () => {
   const [imageSrc, setImageSrc] = useState<string | null>(null);
@@ -445,35 +473,59 @@ const Simulator: React.FC = () => {
   const [cursorPos, setCursorPos] = useState<{ x: number; y: number } | null>(null);
   const [imageDims, setImageDims] = useState({ w: 800, h: 600 });
 
-  // Mobile bottom sheet
+
+
+  // Texture image cache
+  const textureCache = useRef<Map<string, HTMLImageElement>>(new Map());
+  const [, forceUpdate] = useState(0);
+
+  // Pre-load all textures
+  useEffect(() => {
+    TEXTURES.forEach(tex => {
+      if (!textureCache.current.has(tex.id)) {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => { textureCache.current.set(tex.id, img); forceUpdate(v => v + 1); };
+        img.src = tex.src;
+      }
+    });
+  }, []);
+
   const [mobileTab, setMobileTab] = useState<MobileTab>('photo');
   const [sheetExpanded, setSheetExpanded] = useState(false);
-
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const aiZones = zones.filter(z => z.type === 'ai');
   const manualZones = zones.filter(z => z.type === 'manual');
   const hasAiRun = predictionData !== null;
   const hasClosed = zones.some(z => z.type === 'ai' || (z.type === 'manual' && z.closed));
-  const drawingPts = (zones[selectedIndex]?.type === 'manual' ? (zones[selectedIndex].points?.length ?? 0) : 0);
+  const drawingPts = zones[selectedIndex]?.type === 'manual' ? (zones[selectedIndex].points?.length ?? 0) : 0;
+  const activeStyle = zoneStyles[selectedIndex] ?? DEFAULT_STYLE;
 
   const selectZone = useCallback((i: number) => {
-    setSelectedIndex(i); setPickerHex(zoneStyles[i]?.color ?? '#C19A6B');
+    setSelectedIndex(i);
+    const s = zoneStyles[i] ?? DEFAULT_STYLE;
+    if (s.mode === 'color') setPickerHex(s.color);
     setLabelIndex(i); setApplyToAll(false);
     const z = zones[i]; setIsDrawing(z?.type === 'manual' && !z.closed);
   }, [zones, zoneStyles]);
 
   const applyColor = useCallback((hex: string) => {
     setPickerHex(hex);
-    if (applyToAll) {
-      setZoneStyles(prev => prev.map(() => ({ color: hex })));
-    } else {
-      setZoneStyles(prev => { const next = [...prev]; if (next[selectedIndex]) next[selectedIndex] = { color: hex }; return next; });
-    }
+    const newStyle: ZoneStyle = { mode: 'color', color: hex };
+    if (applyToAll) setZoneStyles(prev => prev.map(() => ({ ...newStyle })));
+    else setZoneStyles(prev => { const n = [...prev]; if (n[selectedIndex]) n[selectedIndex] = newStyle; return n; });
   }, [selectedIndex, applyToAll]);
 
+  const applyTexture = useCallback((textureId: string) => {
+    const newStyle: ZoneStyle = { mode: 'texture', color: pickerHex, textureId };
+    if (applyToAll) setZoneStyles(prev => prev.map(() => ({ ...newStyle })));
+    else setZoneStyles(prev => { const n = [...prev]; if (n[selectedIndex]) n[selectedIndex] = newStyle; return n; });
+  }, [selectedIndex, applyToAll, pickerHex]);
+
   const handleFileUpload = useCallback(async (file: File) => {
-    setError(null); setPredictionData(null); setZones([]); setZoneStyles([]); setSelectedIndex(0); setLabelIndex(null); setIsDrawing(false); setPreviewMode(false); setApplyToAll(true);
+    setError(null); setPredictionData(null); setZones([]); setZoneStyles([]);
+    setSelectedIndex(0); setLabelIndex(null); setIsDrawing(false); setPreviewMode(false); setApplyToAll(true);
     const url = URL.createObjectURL(file); setImageSrc(url);
     const img = new Image(); img.onload = () => setImageDims({ w: img.naturalWidth, h: img.naturalHeight }); img.src = url;
     setIsLoading(true); setMobileTab('zones');
@@ -481,22 +533,22 @@ const Simulator: React.FC = () => {
       const data = await aiService.predictFloor(file);
       setPredictionData(data); setImageDims({ w: data.image_width, h: data.image_height });
       const newZones: Zone[] = data.predictions.map((pred, i) => ({ type: 'ai', label: `Zone IA ${i + 1} — ${pred.class}`, aiPrediction: pred }));
-      const newStyles: ZoneStyle[] = data.predictions.map(() => ({ color: SWATCHES[0].hex }));
-      setZones(newZones); setZoneStyles(newStyles); setPickerHex(newStyles[0]?.color ?? '#C19A6B');
+      const newStyles: ZoneStyle[] = data.predictions.map(() => ({ ...DEFAULT_STYLE }));
+      setZones(newZones); setZoneStyles(newStyles);
       if (newZones.length > 0) setMobileTab('color');
     } catch (err: any) { setError(err.message ?? 'Une erreur est survenue.'); setMobileTab('photo'); }
     finally { setIsLoading(false); }
   }, []);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (file) handleFileUpload(file); };
-  const handleDrop = (e: React.DragEvent) => { e.preventDefault(); const file = e.dataTransfer.files[0]; if (file?.type.startsWith('image/')) handleFileUpload(file); };
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); };
+  const handleDrop = (e: React.DragEvent) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f?.type.startsWith('image/')) handleFileUpload(f); };
   const handleCameraCapture = useCallback((file: File) => { setShowCamera(false); handleFileUpload(file); }, [handleFileUpload]);
 
   const startNewManualZone = useCallback((firstPoint?: { x: number; y: number }) => {
-    const idx = zones.length, swatchIdx = idx % SWATCHES.length;
+    const idx = zones.length;
     setZones(prev => [...prev, { type: 'manual', label: `Zone manuelle ${manualZones.length + 1}`, points: firstPoint ? [firstPoint] : [], closed: false }]);
-    setZoneStyles(prev => [...prev, { color: SWATCHES[swatchIdx].hex }]);
-    setSelectedIndex(idx); setPickerHex(SWATCHES[swatchIdx].hex); setIsDrawing(true);
+    setZoneStyles(prev => [...prev, { ...DEFAULT_STYLE }]);
+    setSelectedIndex(idx); setIsDrawing(true);
   }, [zones.length, manualZones.length]);
 
   const handleEmptyClick = useCallback((x: number, y: number) => { if (!hasAiRun || isLoading) return; startNewManualZone({ x, y }); }, [hasAiRun, isLoading, startNewManualZone]);
@@ -505,9 +557,8 @@ const Simulator: React.FC = () => {
     setZones(prev => {
       const next = prev.filter((_, i) => i !== index);
       setZoneStyles(ps => ps.filter((_, i) => i !== index));
-      const newSel = next.length === 0 ? 0 : selectedIndex > index ? selectedIndex - 1 : selectedIndex;
       setLabelIndex(null);
-      setSelectedIndex(newSel);
+      setSelectedIndex(next.length === 0 ? 0 : selectedIndex > index ? selectedIndex - 1 : selectedIndex);
       return next;
     });
     setIsDrawing(false);
@@ -518,9 +569,9 @@ const Simulator: React.FC = () => {
     const zone = zones[selectedIndex]; if (!zone || zone.type !== 'manual' || zone.closed) return;
     const pts = zone.points ?? [];
     if (pts.length >= 3 && dist({ x, y }, pts[0]) < 20) {
-      setZones(prev => { const next = [...prev]; next[selectedIndex] = { ...next[selectedIndex], closed: true }; return next; }); setIsDrawing(false); return;
+      setZones(prev => { const n = [...prev]; n[selectedIndex] = { ...n[selectedIndex], closed: true }; return n; }); setIsDrawing(false); return;
     }
-    setZones(prev => { const next = [...prev]; next[selectedIndex] = { ...next[selectedIndex], points: [...(next[selectedIndex].points ?? []), { x, y }] }; return next; });
+    setZones(prev => { const n = [...prev]; n[selectedIndex] = { ...n[selectedIndex], points: [...(n[selectedIndex].points ?? []), { x, y }] }; return n; });
   }, [isDrawing, zones, selectedIndex]);
 
   const handleCanvasMouseMove = useCallback((x: number, y: number) => { setCursorPos({ x, y }); }, []);
@@ -528,15 +579,14 @@ const Simulator: React.FC = () => {
   const closeCurrentZone = useCallback(() => {
     const zone = zones[selectedIndex];
     if (zone?.type === 'manual' && !zone.closed && (zone.points?.length ?? 0) >= 3) {
-      setZones(prev => { const next = [...prev]; next[selectedIndex] = { ...next[selectedIndex], closed: true }; return next; }); setIsDrawing(false);
+      setZones(prev => { const n = [...prev]; n[selectedIndex] = { ...n[selectedIndex], closed: true }; return n; }); setIsDrawing(false);
     }
   }, [zones, selectedIndex]);
 
   const undoLastPoint = useCallback(() => {
     const zone = zones[selectedIndex];
-    if (zone?.type === 'manual' && !zone.closed && (zone.points?.length ?? 0) > 0) {
-      setZones(prev => { const next = [...prev]; next[selectedIndex] = { ...next[selectedIndex], points: (next[selectedIndex].points ?? []).slice(0, -1) }; return next; });
-    }
+    if (zone?.type === 'manual' && !zone.closed && (zone.points?.length ?? 0) > 0)
+      setZones(prev => { const n = [...prev]; n[selectedIndex] = { ...n[selectedIndex], points: (n[selectedIndex].points ?? []).slice(0, -1) }; return n; });
   }, [zones, selectedIndex]);
 
   useEffect(() => {
@@ -544,44 +594,125 @@ const Simulator: React.FC = () => {
       if (!isDrawing) return;
       if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); undoLastPoint(); }
       if (e.key === 'Enter') { e.preventDefault(); closeCurrentZone(); }
-      if (e.key === 'Escape') { e.preventDefault(); const zone = zones[selectedIndex]; if (zone?.type === 'manual' && !zone.closed) deleteZone(selectedIndex); }
+      if (e.key === 'Escape') { e.preventDefault(); const z = zones[selectedIndex]; if (z?.type === 'manual' && !z.closed) deleteZone(selectedIndex); }
     };
     window.addEventListener('keydown', handler); return () => window.removeEventListener('keydown', handler);
   }, [isDrawing, undoLastPoint, closeCurrentZone, zones, selectedIndex, deleteZone]);
 
-  const reset = () => { setImageSrc(null); setPredictionData(null); setZones([]); setZoneStyles([]); setIsDrawing(false); setError(null); setPreviewMode(false); setMobileTab('photo'); setSelectedIndex(0); setLabelIndex(null); setApplyToAll(true); };
+  const reset = () => {
+    setImageSrc(null); setPredictionData(null); setZones([]); setZoneStyles([]);
+    setIsDrawing(false); setError(null); setPreviewMode(false); setMobileTab('photo');
+    setSelectedIndex(0); setLabelIndex(null); setApplyToAll(true);
+  };
 
   const downloadResult = () => {
     if (!imageSrc) return;
     const img = new Image();
     img.onload = () => {
       const W = img.naturalWidth, H = img.naturalHeight;
-      const offscreen = document.createElement('canvas');
-      offscreen.width = W; offscreen.height = H;
-      const ctx = offscreen.getContext('2d')!;
-      ctx.drawImage(img, 0, 0, W, H);
-
-      const scaleX = W / imageDims.w, scaleY = H / imageDims.h;
+      const off = document.createElement('canvas'); off.width = W; off.height = H;
+      const ctx = off.getContext('2d')!; ctx.drawImage(img, 0, 0, W, H);
+      const sX = W / imageDims.w, sY = H / imageDims.h;
       zones.forEach((zone, i) => {
-        const style = zoneStyles[i] ?? { color: SWATCHES[i % SWATCHES.length].hex };
+        const style = zoneStyles[i] ?? DEFAULT_STYLE;
         let pts: { x: number; y: number }[] = [];
-        if (zone.type === 'ai' && zone.aiPrediction) {
-          pts = zone.aiPrediction.points.map(p => ({ x: p.x * scaleX, y: p.y * scaleY }));
-        } else if (zone.type === 'manual' && zone.points && zone.closed) {
-          pts = zone.points;
-        }
+        if (zone.type === 'ai' && zone.aiPrediction) pts = zone.aiPrediction.points.map(p => ({ x: p.x * sX, y: p.y * sY }));
+        else if (zone.type === 'manual' && zone.points && zone.closed) pts = zone.points;
         if (pts.length < 3) return;
-        applyRealisticPaint(ctx, img, pts, style.color, W, H);
+        if (style.mode === 'texture' && style.textureId) {
+          const texImg = textureCache.current.get(style.textureId);
+          if (texImg) applyTexturePaint(ctx, img, pts, texImg, W, H);
+          else applyRealisticPaint(ctx, img, pts, style.color, W, H);
+        } else applyRealisticPaint(ctx, img, pts, style.color, W, H);
       });
-
-      const a = document.createElement('a'); a.href = offscreen.toDataURL('image/png'); a.download = 'mur-colorise.png'; a.click();
+      const a = document.createElement('a'); a.href = off.toDataURL('image/png'); a.download = 'mur-colorise.png'; a.click();
     };
     img.src = imageSrc;
   };
 
-  const activeStyle = zoneStyles[selectedIndex] ?? { color: '#C19A6B' };
   const step1Done = !!imageSrc, step2Done = hasAiRun, step3Active = hasAiRun && !isLoading;
 
+  // ─── Shared picker panel ──────────────────────────────────────────────────
+
+  const renderPickerPanel = (compact = false) => (
+    <div className="flex flex-col gap-3">
+
+      {/* Scope toggle */}
+      {zones.filter(z => z.type === 'ai' || z.closed).length > 1 && (
+        <div className="flex items-center bg-slate-100 rounded-2xl p-1 gap-1">
+          <button onClick={() => setApplyToAll(true)} className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${applyToAll ? 'bg-slate-900 text-white shadow' : 'text-slate-400'}`}>Toutes</button>
+          <button onClick={() => setApplyToAll(false)} className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${!applyToAll ? 'bg-slate-900 text-white shadow' : 'text-slate-400'}`}>Une zone</button>
+        </div>
+      )}
+
+      {/* Zone selector in single mode */}
+      {!applyToAll && zones.filter(z => z.type === 'ai' || z.closed).length > 1 && (
+        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+          {zones.map((zone, i) => {
+            const isReady = zone.type === 'ai' || zone.closed; if (!isReady) return null;
+            return (
+              <button key={i} onClick={() => selectZone(i)}
+                className={`flex-shrink-0 flex items-center gap-2 px-3 py-2 rounded-2xl text-[10px] font-bold border transition-all ${selectedIndex === i ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-50 text-slate-500 border-slate-100'}`}>
+                <StyleSwatch style={zoneStyles[i] ?? DEFAULT_STYLE} size="sm" />
+                <span className="truncate max-w-[80px]">{zone.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Texture image grid */}
+      <div className={`grid gap-2 ${compact ? 'grid-cols-2' : 'grid-cols-4'}`}>
+        {TEXTURES.map(tex => {
+          const isActive = activeStyle.mode === 'texture' && activeStyle.textureId === tex.id;
+          return (
+            <button key={tex.id} onClick={() => applyTexture(tex.id)}
+              className={`relative group rounded-2xl overflow-hidden border-2 transition-all hover:scale-[1.03] active:scale-[0.97] ${isActive ? 'border-slate-900 shadow-lg shadow-slate-200' : 'border-transparent hover:border-slate-200'}`}
+              style={{ aspectRatio: '4/3' }}>
+              <img src={tex.src} alt={tex.name} className="w-full h-full object-cover" loading="lazy" />
+
+              {isActive && (
+                <div className="absolute top-1.5 right-1.5 w-5 h-5 bg-white rounded-full flex items-center justify-center shadow-lg">
+                  <Check size={10} strokeWidth={3} className="text-slate-900" />
+                </div>
+              )}
+              <div className={`absolute inset-0 transition-opacity ${isActive ? 'opacity-0' : 'bg-black/0 group-hover:bg-black/5'}`} />
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Divider */}
+      <div className="flex items-center gap-3">
+        <div className="flex-1 h-px bg-slate-100" />
+        <span className="text-[9px] font-bold text-slate-300 uppercase tracking-widest">ou couleur unie</span>
+        <div className="flex-1 h-px bg-slate-100" />
+      </div>
+
+      {/* Custom hex color input */}
+      <div className="flex items-center gap-3 bg-slate-50 border border-slate-100 rounded-2xl p-3">
+        <input type="color" value={pickerHex} onChange={e => applyColor(e.target.value)}
+          className="w-10 h-10 rounded-xl cursor-pointer border-0 p-0.5 bg-transparent flex-shrink-0" />
+        <div className="flex-1 min-w-0">
+          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Couleur personnalisée</p>
+          <input type="text" value={pickerHex}
+            onChange={e => { setPickerHex(e.target.value); if (/^#[0-9A-Fa-f]{6}$/.test(e.target.value)) applyColor(e.target.value); }}
+            className="w-full bg-transparent border-none text-xs font-mono text-slate-600 focus:outline-none" />
+        </div>
+        <div className="w-9 h-9 rounded-xl flex-shrink-0 border border-slate-200 shadow-inner"
+          style={{ backgroundColor: activeStyle.mode === 'color' ? activeStyle.color : pickerHex }} />
+      </div>
+
+      {hasClosed && (
+        <button onClick={downloadResult} className="w-full bg-gold text-white font-black py-3.5 rounded-2xl shadow-xl shadow-gold/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 uppercase text-xs tracking-widest">
+          <Download size={16} strokeWidth={3} />Télécharger le résultat
+        </button>
+      )}
+      {!hasClosed && <p className="text-center text-xs font-bold text-slate-400">Sélectionnez une zone pour la styliser</p>}
+    </div>
+  );
+
+  // ─── Mobile tab renderers ─────────────────────────────────────────────────
 
   const renderMobilePhotoTab = () => (
     <div className="flex flex-col gap-3 px-4 pb-4">
@@ -625,16 +756,14 @@ const Simulator: React.FC = () => {
       )}
       {!isLoading && aiZones.length > 0 && (
         <div>
-          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1">
-            <Cpu size={10} />Zones IA détectées
-          </p>
+          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1"><Cpu size={10} />Zones IA</p>
           <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-            {aiZones.map((zone) => {
+            {aiZones.map(zone => {
               const gi = zones.indexOf(zone);
               return (
                 <button key={gi} onClick={() => { selectZone(gi); setMobileTab('color'); }}
                   className={`flex-shrink-0 flex items-center gap-2 px-3 py-2 rounded-2xl text-[11px] font-bold border transition-all ${selectedIndex === gi ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-50 text-slate-500 border-slate-100'}`}>
-                  <span className="w-3 h-3 rounded-full border-2 border-white shadow" style={{ backgroundColor: zoneStyles[gi]?.color ?? '#ccc' }} />
+                  <StyleSwatch style={zoneStyles[gi] ?? DEFAULT_STYLE} size="sm" />
                   {zone.aiPrediction?.class}
                 </button>
               );
@@ -644,21 +773,19 @@ const Simulator: React.FC = () => {
       )}
       {step3Active && (
         <div>
-          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1">
-            <PenTool size={10} />Zones manuelles
-          </p>
+          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1"><PenTool size={10} />Zones manuelles</p>
           {manualZones.length > 0 && (
             <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide mb-2">
-              {manualZones.map((zone) => {
+              {manualZones.map(zone => {
                 const gi = zones.indexOf(zone);
                 return (
                   <div key={gi} className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-2xl text-[11px] font-bold border transition-all ${selectedIndex === gi ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-50 text-slate-500 border-slate-100'}`}>
                     <button onClick={() => { selectZone(gi); setMobileTab('color'); }} className="flex items-center gap-1.5">
-                      <span className="w-3 h-3 rounded-full border-2 border-white shadow" style={{ backgroundColor: zoneStyles[gi]?.color ?? '#ccc' }} />
+                      <StyleSwatch style={zoneStyles[gi] ?? DEFAULT_STYLE} size="sm" />
                       {zone.label}
                       {zone.closed ? <Check size={10} className="text-emerald-400" strokeWidth={3} /> : <span className="text-[9px] italic opacity-60">({zone.points?.length ?? 0})</span>}
                     </button>
-                    <button onClick={() => deleteZone(gi)} className="ml-1 text-slate-300 hover:text-rose-400 transition-colors"><X size={12} strokeWidth={2.5} /></button>
+                    <button onClick={() => deleteZone(gi)} className="ml-1 text-slate-300 hover:text-rose-400"><X size={12} strokeWidth={2.5} /></button>
                   </div>
                 );
               })}
@@ -666,7 +793,7 @@ const Simulator: React.FC = () => {
           )}
           {isDrawing ? (
             <div className="bg-amber-50 border border-amber-100 rounded-2xl px-4 py-3 space-y-2">
-              <p className="text-[10px] font-bold text-amber-700 flex items-center gap-1.5"><PenTool size={11} />Tracé actif — {drawingPts} point{drawingPts !== 1 ? 's' : ''}</p>
+              <p className="text-[10px] font-bold text-amber-700 flex items-center gap-1.5"><PenTool size={11} />Tracé — {drawingPts} pt{drawingPts !== 1 ? 's' : ''}</p>
               <div className="flex gap-2">
                 {drawingPts > 0 && <button onClick={undoLastPoint} className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-white text-slate-500 text-[10px] font-black border border-slate-200"><X size={11} />Annuler pt</button>}
                 {drawingPts >= 3 && <button onClick={closeCurrentZone} className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-emerald-500 text-white text-[10px] font-black"><CornerDownLeft size={11} />Fermer</button>}
@@ -679,92 +806,35 @@ const Simulator: React.FC = () => {
           )}
         </div>
       )}
-      {!imageSrc && !isLoading && (
-        <div className="text-center py-4 text-xs font-bold text-slate-400">Uploadez d'abord une photo</div>
-      )}
+      {!imageSrc && !isLoading && <div className="text-center py-4 text-xs font-bold text-slate-400">Uploadez d'abord une photo</div>}
     </div>
   );
-
-  const renderMobileColorTab = () => (
-    <div className="flex flex-col gap-4 px-4 pb-4">
-
-      {/* All / Single toggle */}
-      {zones.filter(z => z.type === 'ai' || z.closed).length > 1 && (
-        <div className="flex items-center bg-slate-100 rounded-2xl p-1 gap-1">
-          <button onClick={() => setApplyToAll(true)}
-            className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${applyToAll ? 'bg-slate-900 text-white shadow' : 'text-slate-400'}`}>
-            Toutes les zones
-          </button>
-          <button onClick={() => setApplyToAll(false)}
-            className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${!applyToAll ? 'bg-slate-900 text-white shadow' : 'text-slate-400'}`}>
-            Zone sélectionnée
-          </button>
-        </div>
-      )}
-
-      {/* Zone selector — only shown in single mode */}
-      {!applyToAll && zones.filter(z => z.type === 'ai' || z.closed).length > 1 && (
-        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-          {zones.map((zone, i) => {
-            const isReady = zone.type === 'ai' || zone.closed; if (!isReady) return null;
-            return (
-              <button key={i} onClick={() => selectZone(i)}
-                className={`flex-shrink-0 flex items-center gap-2 px-3 py-2 rounded-2xl text-[10px] font-bold border transition-all ${selectedIndex === i ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-50 text-slate-500 border-slate-100'}`}>
-                <span className="w-3 h-3 rounded-full border border-white shadow" style={{ backgroundColor: zoneStyles[i]?.color ?? '#ccc' }} />
-                {zone.label}
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Swatches */}
-      <div className="flex gap-2.5 overflow-x-auto pb-1 scrollbar-hide">
-        {SWATCHES.map(s => (
-          <button key={s.hex} onClick={() => applyColor(s.hex)} title={s.name}
-            className={`flex-shrink-0 w-10 h-10 rounded-xl border-4 transition-all relative hover:scale-110 ${activeStyle.color === s.hex ? 'border-slate-900 scale-110 shadow-lg' : 'border-transparent'}`}
-            style={{ backgroundColor: s.hex }}>
-            {activeStyle.color === s.hex && <div className="absolute inset-0 flex items-center justify-center"><Check size={13} strokeWidth={3} className="text-white drop-shadow" /></div>}
-          </button>
-        ))}
-      </div>
-      {/* Custom hex */}
-      <div className="flex items-center gap-3">
-        <input type="color" value={pickerHex} onChange={e => applyColor(e.target.value)} className="w-10 h-10 rounded-xl cursor-pointer border border-slate-200 p-0.5 flex-shrink-0" />
-        <div className="flex-1 min-w-0">
-          <p className="text-[9px] font-bold text-slate-400 mb-1 uppercase tracking-widest">Couleur personnalisée</p>
-          <p className="text-xs font-mono text-slate-500">{pickerHex}</p>
-        </div>
-        <div className="w-10 h-10 rounded-xl border border-slate-100 flex-shrink-0 shadow-inner" style={{ backgroundColor: activeStyle.color }} />
-      </div>
-      {/* Download */}
-      {hasClosed && (
-        <button onClick={downloadResult} className="w-full bg-gold text-white font-black py-3.5 rounded-2xl shadow-xl shadow-gold/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 uppercase text-xs tracking-widest">
-          <Download size={16} strokeWidth={3} />Télécharger le résultat
-        </button>
-      )}
-      {!hasClosed && <p className="text-center text-xs font-bold text-slate-400">Sélectionnez une zone pour la coloriser</p>}
-    </div>
-  );
-
 
   const TABS: { id: MobileTab; label: string; icon: React.ReactNode; badge?: number }[] = [
     { id: 'photo', label: 'Photo', icon: <ImageIcon size={16} strokeWidth={2} /> },
     { id: 'zones', label: 'Zones', icon: <Layers size={16} strokeWidth={2} />, badge: zones.filter(z => z.type === 'ai' || z.closed).length || undefined },
-    { id: 'color', label: 'Couleur', icon: <Palette size={16} strokeWidth={2} /> },
+    { id: 'color', label: 'Style', icon: <Palette size={16} strokeWidth={2} /> },
   ];
+
+  const overlayProps = {
+    imageSrc: imageSrc!,
+    imageWidth: imageDims.w, imageHeight: imageDims.h,
+    zones, zoneStyles, selectedIndex, labelIndex,
+    previewMode, isDrawing, cursorPos: isDrawing ? cursorPos : null,
+    onZoneClick: selectZone, onCanvasClick: handleCanvasClick,
+    onCanvasMouseMove: handleCanvasMouseMove, onEmptyClick: handleEmptyClick,
+    textureCache: textureCache.current,
+  };
 
   return (
     <>
       {showCamera && <CameraModal onCapture={handleCameraCapture} onClose={() => setShowCamera(false)} />}
       <input type="file" ref={fileInputRef} onChange={handleInputChange} accept="image/*" className="hidden" />
 
-      {/* ════════════════════════════════════════════════
-          MOBILE LAYOUT  (hidden on lg+)
-          ════════════════════════════════════════════════ */}
+      {/* ═══════════════════════ MOBILE ═══════════════════════ */}
       <div className="flex flex-col lg:hidden fixed inset-0 bg-slate-900 z-10" style={{ height: '100dvh' }}>
 
-        {/* Mobile top bar */}
+        {/* Top bar */}
         <div className="flex-shrink-0 flex items-center justify-between px-4 pt-safe-top py-3 bg-slate-900 border-b border-slate-800">
           <div>
             <p className="text-[9px] font-black text-gold uppercase tracking-[0.25em]">Simulation Visuelle</p>
@@ -786,65 +856,41 @@ const Simulator: React.FC = () => {
           </div>
         </div>
 
-        {/* Canvas area */}
-        <div className="flex-1 relative overflow-hidden bg-slate-950 transition-all duration-300" style={{ minHeight: 0 }}>
+        {/* Canvas */}
+        <div className="flex-1 relative overflow-hidden bg-slate-950" style={{ minHeight: 0 }}>
           {isLoading && (
             <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 bg-slate-950">
-              <div className="relative">
-                <div className="w-16 h-16 border-4 border-gold/20 border-t-gold rounded-full animate-spin" />
-                <Sparkles size={20} className="absolute inset-0 m-auto text-gold" />
-              </div>
+              <div className="relative"><div className="w-16 h-16 border-4 border-gold/20 border-t-gold rounded-full animate-spin" /><Sparkles size={20} className="absolute inset-0 m-auto text-gold" /></div>
               <p className="text-sm font-black text-white">Analyse IA en cours…</p>
               {imageSrc && <img src={imageSrc} alt="" className="absolute inset-0 w-full h-full object-contain opacity-10 pointer-events-none" />}
             </div>
           )}
           {!imageSrc && !isLoading && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-5 text-center px-8">
-              <div className="w-20 h-20 rounded-full bg-slate-800 flex items-center justify-center">
-                <Camera size={36} strokeWidth={1} className="text-slate-500" />
-              </div>
+              <div className="w-20 h-20 rounded-full bg-slate-800 flex items-center justify-center"><Camera size={36} strokeWidth={1} className="text-slate-500" /></div>
               <p className="text-sm font-bold text-slate-400">Uploadez ou photographiez la pièce</p>
               <div className="flex gap-3">
-                <button onClick={() => fileInputRef.current?.click()} className="px-5 py-3 bg-slate-800 rounded-2xl text-white text-xs font-black uppercase tracking-widest flex items-center gap-2 hover:bg-slate-700 transition-all">
-                  <Upload size={14} />Upload
-                </button>
-                <button onClick={() => setShowCamera(true)} className="px-5 py-3 bg-gold rounded-2xl text-white text-xs font-black uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-gold/20 hover:scale-105 transition-all">
-                  <Camera size={14} />Caméra
-                </button>
+                <button onClick={() => fileInputRef.current?.click()} className="px-5 py-3 bg-slate-800 rounded-2xl text-white text-xs font-black uppercase tracking-widest flex items-center gap-2 hover:bg-slate-700 transition-all"><Upload size={14} />Upload</button>
+                <button onClick={() => setShowCamera(true)} className="px-5 py-3 bg-gold rounded-2xl text-white text-xs font-black uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-gold/20 hover:scale-105 transition-all"><Camera size={14} />Caméra</button>
               </div>
             </div>
           )}
-          {imageSrc && !isLoading && (
-            <UnifiedOverlay
-              imageSrc={imageSrc} imageWidth={imageDims.w} imageHeight={imageDims.h}
-              zones={zones} zoneStyles={zoneStyles} selectedIndex={selectedIndex} labelIndex={labelIndex}
-              previewMode={previewMode} isDrawing={isDrawing} cursorPos={isDrawing ? cursorPos : null}
-              onZoneClick={selectZone} onCanvasClick={handleCanvasClick}
-              onCanvasMouseMove={handleCanvasMouseMove} onEmptyClick={handleEmptyClick}
-              fillContainer
-            />
-          )}
-
+          {imageSrc && !isLoading && <UnifiedOverlay {...overlayProps} fillContainer />}
           {isDrawing && (
             <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 pointer-events-none">
               <div className="flex items-center gap-2 bg-amber-500/95 text-white text-[10px] font-bold px-4 py-2 rounded-xl shadow-lg">
                 <PenTool size={11} />
-                {drawingPts === 0 ? 'Touchez l\'image pour placer des points' : drawingPts < 3 ? `${drawingPts} point${drawingPts > 1 ? 's' : ''} — continuez` : 'Touchez le ● pour fermer'}
+                {drawingPts === 0 ? 'Touchez pour placer des points' : drawingPts < 3 ? `${drawingPts} pts — continuez` : 'Touchez le ● pour fermer'}
               </div>
             </div>
           )}
-
           {hasAiRun && !isLoading && (
             <div className="absolute bottom-3 right-3 flex flex-col gap-2 z-30">
               {isDrawing && drawingPts >= 3 && (
-                <button onClick={closeCurrentZone} className="w-11 h-11 bg-emerald-500/95 backdrop-blur-sm rounded-2xl flex items-center justify-center text-white shadow-lg active:scale-95 transition-all">
-                  <CornerDownLeft size={17} strokeWidth={2.5} />
-                </button>
+                <button onClick={closeCurrentZone} className="w-11 h-11 bg-emerald-500/95 backdrop-blur-sm rounded-2xl flex items-center justify-center text-white shadow-lg active:scale-95 transition-all"><CornerDownLeft size={17} strokeWidth={2.5} /></button>
               )}
               {isDrawing && drawingPts > 0 && (
-                <button onClick={undoLastPoint} className="w-11 h-11 bg-slate-800/95 backdrop-blur-sm rounded-2xl flex items-center justify-center text-white shadow-lg active:scale-95 transition-all">
-                  <X size={17} strokeWidth={2.5} />
-                </button>
+                <button onClick={undoLastPoint} className="w-11 h-11 bg-slate-800/95 backdrop-blur-sm rounded-2xl flex items-center justify-center text-white shadow-lg active:scale-95 transition-all"><X size={17} strokeWidth={2.5} /></button>
               )}
             </div>
           )}
@@ -858,11 +904,8 @@ const Simulator: React.FC = () => {
               {TABS.map(tab => (
                 <button key={tab.id} onClick={() => setMobileTab(tab.id)}
                   className={`flex-1 flex flex-col items-center gap-1 py-3 text-[10px] font-black uppercase tracking-widest transition-all relative ${mobileTab === tab.id ? 'text-slate-900' : 'text-slate-400'}`}>
-                  {tab.icon}
-                  {tab.label}
-                  {tab.badge ? (
-                    <span className="absolute top-2 right-1/4 w-4 h-4 bg-gold rounded-full text-white text-[9px] font-black flex items-center justify-center">{tab.badge}</span>
-                  ) : null}
+                  {tab.icon}{tab.label}
+                  {tab.badge ? <span className="absolute top-2 right-1/4 w-4 h-4 bg-gold rounded-full text-white text-[9px] font-black flex items-center justify-center">{tab.badge}</span> : null}
                   {mobileTab === tab.id && <span className="absolute bottom-0 left-1/4 right-1/4 h-0.5 bg-gold rounded-full" />}
                 </button>
               ))}
@@ -871,26 +914,25 @@ const Simulator: React.FC = () => {
           <div className="flex-1 overflow-y-auto pt-3">
             {mobileTab === 'photo' && renderMobilePhotoTab()}
             {mobileTab === 'zones' && renderMobileZonesTab()}
-            {mobileTab === 'color' && renderMobileColorTab()}
+            {mobileTab === 'color' && <div className="px-4 pb-4">{renderPickerPanel(true)}</div>}
           </div>
         </div>
       </div>
 
-
+      {/* ═══════════════════════ DESKTOP ═══════════════════════ */}
       <div className="hidden lg:block space-y-10 animate-fade-in">
-
         <div>
           <p className="text-[10px] font-black text-gold uppercase tracking-[0.3em] mb-2">Simulation Visuelle</p>
           <h2 className="text-5xl font-black text-slate-900 tracking-tight">Coloriseur de Mur AI</h2>
-          <p className="text-sm text-slate-400 font-medium mt-3 max-w-lg">L'IA détecte automatiquement les zones de mur. Complétez ensuite manuellement les surfaces manquantes.</p>
+          <p className="text-sm text-slate-400 font-medium mt-3 max-w-lg">L'IA détecte automatiquement les zones de mur. Complétez manuellement les surfaces manquantes.</p>
         </div>
 
         <div className="grid grid-cols-4 gap-8" style={{ height: 'calc(100vh - 240px)', minHeight: '600px' }}>
 
-          {/* ── Left sidebar ── */}
+          {/* ── Sidebar ── */}
           <div className="col-span-1 overflow-y-auto pr-1 space-y-5 scrollbar-thin scrollbar-thumb-slate-200">
 
-            {/* Step 1: Upload */}
+            {/* Step 1 */}
             <div className="bg-white border border-slate-200 rounded-[2rem] p-6 shadow-xl shadow-slate-200/40">
               <div className="flex items-center gap-3 mb-4">
                 <StepBadge n={1} active={!step1Done} done={step1Done} />
@@ -920,28 +962,23 @@ const Simulator: React.FC = () => {
               )}
             </div>
 
-            {/* Step 2: AI */}
+            {/* Step 2 */}
             {imageSrc && (
               <div className="bg-white border border-slate-200 rounded-[2rem] p-6 shadow-xl shadow-slate-200/40">
                 <div className="flex items-center gap-3 mb-4">
                   <StepBadge n={2} active={isLoading} done={step2Done && !isLoading} />
                   <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Détection IA</span>
                 </div>
-                {isLoading && (
-                  <div className="flex items-center gap-3 py-2">
-                    <div className="w-8 h-8 border-3 border-gold/20 border-t-gold rounded-full animate-spin flex-shrink-0" />
-                    <p className="text-xs font-bold text-slate-400">Analyse des surfaces…</p>
-                  </div>
-                )}
+                {isLoading && <div className="flex items-center gap-3 py-2"><div className="w-8 h-8 border-3 border-gold/20 border-t-gold rounded-full animate-spin flex-shrink-0" /><p className="text-xs font-bold text-slate-400">Analyse…</p></div>}
                 {!isLoading && hasAiRun && aiZones.length > 0 && (
                   <div className="space-y-1.5">
                     <p className="text-[10px] font-bold text-emerald-600 flex items-center gap-1 mb-2"><Check size={11} strokeWidth={3} />{aiZones.length} zone{aiZones.length > 1 ? 's' : ''} détectée{aiZones.length > 1 ? 's' : ''}</p>
-                    {aiZones.map((zone) => {
+                    {aiZones.map(zone => {
                       const gi = zones.indexOf(zone);
                       return (
                         <button key={gi} onClick={() => selectZone(gi)}
                           className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-2xl text-[11px] font-bold transition-all border ${selectedIndex === gi ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-50 text-slate-500 border-slate-100 hover:border-slate-300'}`}>
-                          <span className="w-3 h-3 rounded-full flex-shrink-0 border-2 border-white shadow" style={{ backgroundColor: zoneStyles[gi]?.color ?? '#ccc' }} />
+                          <StyleSwatch style={zoneStyles[gi] ?? DEFAULT_STYLE} />
                           <span className="truncate">{zone.aiPrediction?.class}</span>
                           <span className="ml-auto text-[9px] opacity-50 flex-shrink-0">{((zone.aiPrediction?.confidence ?? 0) * 100).toFixed(0)}%</span>
                           <Cpu size={10} className="opacity-40 flex-shrink-0" />
@@ -955,7 +992,7 @@ const Simulator: React.FC = () => {
               </div>
             )}
 
-            {/* Step 3: Manual zones */}
+            {/* Step 3 */}
             {step3Active && (
               <div className="bg-white border border-slate-200 rounded-[2rem] p-6 shadow-xl shadow-slate-200/40">
                 <div className="flex items-center gap-3 mb-1">
@@ -966,18 +1003,18 @@ const Simulator: React.FC = () => {
                 <p className="text-[10px] text-slate-400 mb-3 leading-relaxed">Tracez les surfaces non détectées.</p>
                 {isDrawing && (
                   <div className="px-3 py-3 bg-amber-50 rounded-2xl border border-amber-100 mb-3">
-                    <p className="text-[10px] font-bold text-amber-700 flex items-center gap-1.5 mb-1"><PenTool size={11} />Tracé en cours ({drawingPts} pts)</p>
-                    <p className="text-[10px] text-amber-600">Clic sur 1er point • <kbd className="px-1 bg-white rounded font-mono border border-amber-200 text-[9px]">Entrée</kbd> fermer • <kbd className="px-1 bg-white rounded font-mono border border-amber-200 text-[9px]">Ctrl+Z</kbd> annuler</p>
+                    <p className="text-[10px] font-bold text-amber-700 flex items-center gap-1.5 mb-1"><PenTool size={11} />Tracé ({drawingPts} pts)</p>
+                    <p className="text-[10px] text-amber-600">Clic sur 1er point • <kbd className="px-1 bg-white rounded font-mono border border-amber-200 text-[9px]">Entrée</kbd> • <kbd className="px-1 bg-white rounded font-mono border border-amber-200 text-[9px]">Ctrl+Z</kbd></p>
                   </div>
                 )}
                 {manualZones.length > 0 && (
                   <div className="flex flex-col gap-1.5 mb-3">
-                    {manualZones.map((zone) => {
+                    {manualZones.map(zone => {
                       const gi = zones.indexOf(zone);
                       return (
                         <div key={gi} className={`flex items-center gap-2 px-3 py-2.5 rounded-2xl text-[11px] font-bold border ${selectedIndex === gi ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-50 text-slate-500 border-slate-100 hover:border-slate-300'}`}>
                           <button onClick={() => selectZone(gi)} className="flex items-center gap-2 flex-1 min-w-0">
-                            <span className="w-3 h-3 rounded-full border-2 border-white shadow flex-shrink-0" style={{ backgroundColor: zoneStyles[gi]?.color ?? '#ccc' }} />
+                            <StyleSwatch style={zoneStyles[gi] ?? DEFAULT_STYLE} />
                             <span className="truncate">{zone.label}</span>
                             {zone.closed ? <Check size={10} className="text-emerald-400 flex-shrink-0" /> : <span className="text-[9px] opacity-60 flex-shrink-0">({zone.points?.length ?? 0})</span>}
                           </button>
@@ -1006,71 +1043,19 @@ const Simulator: React.FC = () => {
               </div>
             )}
 
-            {/* Step 4: Color */}
+            {/* Step 4 — Material & colour panel */}
             {hasClosed && (
-              <div className="bg-white border border-slate-200 rounded-[2rem] p-6 shadow-xl shadow-slate-200/40 space-y-4">
-                <div className="flex items-center gap-3">
+              <div className="bg-white border border-slate-200 rounded-[2rem] p-6 shadow-xl shadow-slate-200/40">
+                <div className="flex items-center gap-3 mb-4">
                   <StepBadge n={4} active done={false} />
-                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Couleur</span>
+                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Matériaux & Couleurs</span>
                 </div>
-
-                {/* All / Single toggle */}
-                {zones.filter(z => z.type === 'ai' || z.closed).length > 1 && (
-                  <div className="flex items-center bg-slate-100 rounded-2xl p-1 gap-1">
-                    <button onClick={() => setApplyToAll(true)}
-                      className={`flex-1 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${applyToAll ? 'bg-slate-900 text-white shadow' : 'text-slate-400 hover:text-slate-600'}`}>
-                      Toutes
-                    </button>
-                    <button onClick={() => setApplyToAll(false)}
-                      className={`flex-1 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${!applyToAll ? 'bg-slate-900 text-white shadow' : 'text-slate-400 hover:text-slate-600'}`}>
-                      Une zone
-                    </button>
-                  </div>
-                )}
-
-                {/* Zone list — only in single mode */}
-                {!applyToAll && zones.filter(z => z.type === 'ai' || z.closed).length > 1 && (
-                  <div className="flex flex-col gap-1">
-                    {zones.map((zone, i) => { const isReady = zone.type === 'ai' || zone.closed; if (!isReady) return null; return (
-                      <button key={i} onClick={() => selectZone(i)}
-                        className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-[11px] font-bold border transition-all ${selectedIndex === i ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-50 text-slate-500 border-slate-100 hover:border-slate-300'}`}>
-                        <span className="w-3 h-3 rounded-full border border-white shadow flex-shrink-0" style={{ backgroundColor: zoneStyles[i]?.color ?? '#ccc' }} />
-                        <span className="truncate">{zone.label}</span>
-                        {zone.type === 'ai' && <Cpu size={10} className="opacity-40 ml-auto flex-shrink-0" />}
-                      </button>
-                    ); })}
-                  </div>
-                )}
-
-                <div className="grid grid-cols-4 gap-2">
-                  {SWATCHES.map(s => (
-                    <button key={s.hex} onClick={() => applyColor(s.hex)} title={s.name}
-                      className={`aspect-square rounded-xl border-4 transition-all relative hover:scale-110 ${activeStyle.color === s.hex ? 'border-slate-900 scale-110 shadow-lg' : 'border-transparent'}`}
-                      style={{ backgroundColor: s.hex }}>
-                      {activeStyle.color === s.hex && <div className="absolute inset-0 flex items-center justify-center"><Check size={12} strokeWidth={3} className="text-white drop-shadow" /></div>}
-                    </button>
-                  ))}
-                </div>
-                <div className="flex items-center gap-2.5">
-                  <input type="color" value={pickerHex} onChange={e => applyColor(e.target.value)} className="w-9 h-9 rounded-xl cursor-pointer border border-slate-200 p-0.5 flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[9px] font-bold text-slate-400 mb-1">Hex</p>
-                    <input type="text" value={pickerHex} onChange={e => { setPickerHex(e.target.value); if (/^#[0-9A-Fa-f]{6}$/.test(e.target.value)) applyColor(e.target.value); }}
-                      className="w-full border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-mono text-slate-700 focus:outline-none focus:border-gold" />
-                  </div>
-                </div>
-
-                {/* Live color preview swatch */}
-                <div className="h-10 rounded-xl border border-slate-100 shadow-inner" style={{ backgroundColor: activeStyle.color }} />
-
-                <button onClick={downloadResult} className="w-full bg-gold text-white font-black py-3.5 rounded-2xl shadow-xl shadow-gold/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2.5 uppercase text-xs tracking-widest">
-                  <Download size={16} strokeWidth={3} />Télécharger
-                </button>
+                {renderPickerPanel()}
               </div>
             )}
           </div>
 
-          {/* ── Right canvas ── */}
+          {/* ── Canvas area ── */}
           <div className="col-span-3 bg-white border border-slate-200 rounded-[3rem] p-8 shadow-xl shadow-slate-200/40 flex flex-col overflow-hidden">
             <div className="flex items-center gap-3 mb-5 flex-shrink-0">
               <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-gold"><Palette size={20} /></div>
@@ -1123,13 +1108,7 @@ const Simulator: React.FC = () => {
               {imageSrc && isLoading && <img src={imageSrc} className="max-w-full max-h-full object-contain opacity-20" alt="" />}
               {imageSrc && !isLoading && !error && (
                 <div className="relative flex items-center justify-center w-full h-full">
-                  <UnifiedOverlay
-                    imageSrc={imageSrc} imageWidth={imageDims.w} imageHeight={imageDims.h}
-                    zones={zones} zoneStyles={zoneStyles} selectedIndex={selectedIndex} labelIndex={labelIndex}
-                    previewMode={previewMode} isDrawing={isDrawing} cursorPos={isDrawing ? cursorPos : null}
-                    onZoneClick={selectZone} onCanvasClick={handleCanvasClick}
-                    onCanvasMouseMove={handleCanvasMouseMove} onEmptyClick={handleEmptyClick}
-                  />
+                  <UnifiedOverlay {...overlayProps} />
                   {hasAiRun && zones.length > 0 && (
                     <div className="absolute bottom-4 right-4 flex flex-col gap-2 z-30">
                       {isDrawing && drawingPts > 0 && (
@@ -1167,7 +1146,7 @@ const Simulator: React.FC = () => {
                       </div>
                     </div>
                   )}
-                  {imageSrc && !isLoading && !error && zones.length === 0 && hasAiRun && (
+                  {zones.length === 0 && hasAiRun && (
                     <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
                       <div className="bg-white/90 backdrop-blur-sm rounded-2xl px-5 py-4 shadow-lg border border-slate-200 text-center max-w-xs">
                         <PenTool size={24} className="mx-auto text-gold mb-2" />
