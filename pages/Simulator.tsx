@@ -387,20 +387,24 @@ function UnifiedOverlay({
 
   useEffect(() => { draw(); }, [draw]);
 
-  const getCoords = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current; if (!canvas) return null;
+  // ── Coordinate mapping ──────────────────────────────────────────────────
+  // Convert screen (clientX/Y) → canvas-buffer coords.
+  // Because we use max-w-full max-h-full (NOT w-full h-full object-contain),
+  // the canvas element's bounding rect exactly matches the visible content.
+  // So a simple ratio mapping is correct.
+  const getCoords = useCallback((clientX: number, clientY: number) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return null;
     const rect = canvas.getBoundingClientRect();
-    return { x: (e.clientX - rect.left) * (canvasDims.w / rect.width), y: (e.clientY - rect.top) * (canvasDims.h / rect.height) };
-  }, [canvasDims]);
-
-  const getTouchCoords = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current; if (!canvas) return null;
-    const rect = canvas.getBoundingClientRect(), touch = e.changedTouches[0];
-    return { x: (touch.clientX - rect.left) * (canvasDims.w / rect.width), y: (touch.clientY - rect.top) * (canvasDims.h / rect.height) };
+    if (rect.width === 0 || rect.height === 0) return null;
+    return {
+      x: (clientX - rect.left) * (canvasDims.w / rect.width),
+      y: (clientY - rect.top) * (canvasDims.h / rect.height),
+    };
   }, [canvasDims]);
 
   const handleClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    const c = getCoords(e); if (!c) return;
+    const c = getCoords(e.clientX, e.clientY); if (!c) return;
     if (isDrawing) { onCanvasClick(c.x, c.y); return; }
     const sX = canvasDims.w / imageWidth, sY = canvasDims.h / imageHeight;
     for (let i = zones.length - 1; i >= 0; i--) {
@@ -412,9 +416,17 @@ function UnifiedOverlay({
     onEmptyClick(c.x, c.y);
   }, [zones, getCoords, isDrawing, onCanvasClick, onZoneClick, onEmptyClick, canvasDims, imageWidth, imageHeight]);
 
-  const handleTouchEnd = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
+  // Use onTouchStart for mobile point placement — more reliable coordinates
+  // than touchend, and we preventDefault to stop scroll + suppress the
+  // subsequent synthetic click (avoiding double-placement).
+  const handleTouchStart = useCallback((e: React.TouchEvent<HTMLCanvasElement>) => {
+    const touch = e.touches[0];
+    if (!touch) return;
+    const c = getCoords(touch.clientX, touch.clientY); if (!c) return;
+
+    // Prevent default to stop scrolling and suppress the follow-up click event
     e.preventDefault();
-    const c = getTouchCoords(e); if (!c) return;
+
     if (isDrawing) { onCanvasClick(c.x, c.y); return; }
     const sX = canvasDims.w / imageWidth, sY = canvasDims.h / imageHeight;
     for (let i = zones.length - 1; i >= 0; i--) {
@@ -424,18 +436,29 @@ function UnifiedOverlay({
       if (pts.length >= 3 && pointInPolygon(c.x, c.y, pts)) { onZoneClick(i); return; }
     }
     onEmptyClick(c.x, c.y);
-  }, [zones, getTouchCoords, isDrawing, onCanvasClick, onZoneClick, onEmptyClick, canvasDims, imageWidth, imageHeight]);
+  }, [zones, getCoords, isDrawing, onCanvasClick, onZoneClick, onEmptyClick, canvasDims, imageWidth, imageHeight]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
-    const c = getCoords(e); if (c) onCanvasMouseMove(c.x, c.y);
+    const c = getCoords(e.clientX, e.clientY); if (c) onCanvasMouseMove(c.x, c.y);
   }, [getCoords, onCanvasMouseMove]);
 
   return (
     <div className="relative w-full h-full flex items-center justify-center">
       <img ref={imgRef} src={imageSrc} className="hidden" onLoad={draw} alt="" />
+      {/*
+        KEY FIX: Always use max-w-full max-h-full — NEVER w-full h-full object-contain.
+        With max-w/h, the canvas element itself sizes to fit the parent while preserving
+        aspect ratio. There is no letterboxing, so getBoundingClientRect() returns the
+        exact visible content area, making coordinate mapping trivially correct.
+        With the old w-full h-full object-contain, the element was stretched to fill
+        the parent (e.g. 375×500) while the visible content was smaller (e.g. 375×211),
+        causing all Y coordinates to be wrong.
+      */}
       <canvas ref={canvasRef} width={canvasDims.w} height={canvasDims.h}
-        onClick={handleClick} onTouchEnd={handleTouchEnd} onMouseMove={handleMouseMove}
-        className={`object-contain cursor-crosshair ${fillContainer ? 'w-full h-full' : 'max-w-full max-h-full rounded-2xl shadow-2xl'}`}
+        onClick={handleClick}
+        onTouchStart={handleTouchStart}
+        onMouseMove={handleMouseMove}
+        className={`max-w-full max-h-full cursor-crosshair ${fillContainer ? '' : 'rounded-2xl shadow-2xl'}`}
         style={{ display: 'block', touchAction: 'none' }} />
     </div>
   );
