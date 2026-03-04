@@ -361,7 +361,7 @@ const Auth: React.FC = () => {
                   value={loginData.username}
                   onChange={(e) => setLoginData({ ...loginData, username: e.target.value })}
                   className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 pl-12 pr-4 text-slate-900 font-bold focus:outline-none focus:border-gold focus:ring-4 focus:ring-gold/5 transition-all"
-                  placeholder="Nom d'utilisateur"
+                  placeholder="Nom d’utilisateur ou e-mail"
                   required
                 />
               </div>
@@ -447,7 +447,7 @@ const Auth: React.FC = () => {
                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-2">Ville</label>
                 <div className="relative group">
                   <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-gold" size={18} />
-                  <input type="text" value={registerData.city} onChange={(e) => setRegisterData({ ...registerData, city: e.target.value })} className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-11 pr-4 text-slate-900 font-bold focus:outline-none focus:border-gold transition-all" placeholder="Casablanca" />
+                  <input type="text" value={registerData.city} onChange={(e) => setRegisterData({ ...registerData, city: e.target.value })} className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-11 pr-4 text-slate-900 font-bold focus:outline-none focus:border-gold transition-all" placeholder="Marrakech" />
                 </div>
               </div>
               <div className="space-y-2">
