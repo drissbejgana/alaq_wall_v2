@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Menu, Search, UserCircle, FileText, ClipboardList, Receipt, X } from 'lucide-react';
+import { Menu, Search, UserCircle, FileText, ClipboardList, Receipt, X, Plus } from 'lucide-react';
 import { User } from '../types';
 import { useQuotes, useOrders, useInvoices } from '@/hooks/useQuotes';
 
@@ -31,7 +31,6 @@ const Header: React.FC<HeaderProps> = ({ user, onMenuToggle }) => {
       window.removeEventListener('offline', handleOffline);
     };
   }, []);
-
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -131,8 +130,8 @@ const Header: React.FC<HeaderProps> = ({ user, onMenuToggle }) => {
           <Menu size={22} />
         </button>
 
-        <div ref={searchRef} className="relative hidden sm:block">
-          <div className={`flex items-center gap-3 bg-slate-50 border rounded-xl px-4 py-2 w-64 md:w-96 transition-all group ${
+        <div ref={searchRef} className="relative">
+          <div className={`flex items-center gap-3 bg-slate-50 border rounded-xl px-4 py-2 w-44 sm:w-64 md:w-96 transition-all group ${
             isFocused ? 'ring-2 ring-gold/20 border-gold bg-white shadow-lg' : 'border-slate-200'
           }`}>
             <Search size={18} className={`transition-colors ${isFocused ? 'text-gold' : 'text-slate-400'}`} />
@@ -215,7 +214,15 @@ const Header: React.FC<HeaderProps> = ({ user, onMenuToggle }) => {
         </div>
       </div>
 
-      <div className="flex items-center gap-3 md:gap-6">
+      <div className="flex items-center gap-3 md:gap-4">
+        <button
+          onClick={() => navigate('/wizard')}
+          className="flex items-center gap-2 px-8 py-3.5 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] hover:bg-gold transition-all shadow-xl"
+        >
+          <Plus size={16} strokeWidth={3} />
+          <span className="hidden sm:inline">Nouveau Devis</span>
+        </button>
+
         <div className="h-8 w-[1px] bg-slate-200 hidden md:block"></div>
 
         <div className="hidden lg:flex items-center gap-3 pl-2">
