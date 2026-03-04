@@ -65,7 +65,6 @@ export const authService = {
     return localStorage.getItem('access_token');
   },
 
-
   async getGoogleAuthURL(): Promise<string> {
     const response = await api.get('/auth/google/url/');
     return response.data.authorization_url;
@@ -77,5 +76,18 @@ export const authService = {
     localStorage.setItem('access_token', access);
     localStorage.setItem('refresh_token', refresh);
     return response.data;
+  },
+
+  async requestPasswordReset(email: string): Promise<void> {
+    await api.post('/auth/password-reset/', { email });
+  },
+
+  async confirmPasswordReset(data: {
+    uid: string;
+    token: string;
+    password: string;
+    password2: string;
+  }): Promise<void> {
+    await api.post('/auth/password-reset/confirm/', data);
   },
 };
